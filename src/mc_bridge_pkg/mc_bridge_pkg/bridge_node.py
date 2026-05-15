@@ -15,7 +15,7 @@ except Exception:
     websockets = None
 
 
-class RosBridgeNode(Node):
+class MCBridgeNode(Node):
     """ROS2 node that bridges JSON messages to/from WebSocket clients.
 
     This is a minimal, extensible skeleton. It uses `std_msgs/String` topics
@@ -24,19 +24,30 @@ class RosBridgeNode(Node):
     """
 
     def __init__(self, loop: asyncio.AbstractEventLoop):
-        super().__init__('ros_bridge_node')
+        """
+        Initialize MCBridgeNode. Loop is the event loop used for all 
+        web socket related communication. Out_queue is created to 
+        queue message payloads to the event loop. 
+
+        (i.e. payloads are added on subscriber callbacks to the queue
+        so that data can be sent to mission control via web socket)
+        
+        """
+        super().__init__('mc_bridge_node')
         self.loop = loop
         self.out_queue: asyncio.Queue = asyncio.Queue(loop=loop)
         self.ws_clients = set()
 
         # Publishers (example)
+        # CHECK QOS PROTOCOL (we might want to adjust accordingly)
         self.drive_pub = self.create_publisher(String, '/mc/drive/cmd', 10)
 
         # Subscribers (example)
         self.create_subscription(String, '/mc/drive/state', self._drive_state_cb, 10)
 
-        self.get_logger().info('RosBridgeNode initialized')
+        self.get_logger().info('MCBridgeNode initialized')
 
+    # TODO: CREATE CALLBACKS FOR EACH TOPIC
     def _drive_state_cb(self, msg: String) -> None:
         payload = {
             'type': 'driveStateReport',
@@ -65,7 +76,7 @@ class RosBridgeNode(Node):
             self.get_logger().warn(f'Unhandled WS message type: {mtype}')
 
 
-async def consumer_handler(websocket, node: RosBridgeNode):
+async def consumer_handler(websocket, node: MCBridgeNode):
     async for message in websocket:
         try:
             data = json.loads(message)
@@ -77,7 +88,7 @@ async def consumer_handler(websocket, node: RosBridgeNode):
         node.handle_ws_message(data)
 
 
-async def producer_handler(websocket, node: RosBridgeNode):
+async def producer_handler(websocket, node: MCBridgeNode):
     while True:
         payload = await node.out_queue.get()
         try:
@@ -87,7 +98,7 @@ async def producer_handler(websocket, node: RosBridgeNode):
             break
 
 
-async def ws_handler(websocket, path, node: RosBridgeNode):
+async def ws_handler(websocket, path, node: MCBridgeNode):
     # Accept only the expected mission-control path
     if path != '/mission-control':
         await websocket.close(code=4000, reason='Invalid path')
@@ -106,7 +117,7 @@ async def ws_handler(websocket, path, node: RosBridgeNode):
         node.get_logger().info('Mission control disconnected')
 
 
-def start_rclpy_spin(node: RosBridgeNode) -> None:
+def start_rclpy_spin(node: MCBridgeNode) -> None:
     try:
         rclpy.spin(node)
     except Exception:
@@ -133,7 +144,7 @@ def main() -> None:
     asyncio.set_event_loop(loop)
 
     rclpy.init()
-    node = RosBridgeNode(loop)
+    node = MCBridgeNode(loop)
 
     # Spin ROS in a background thread so asyncio can run in main thread
     spin_thread = threading.Thread(target=start_rclpy_spin, args=(node,), daemon=True)
