@@ -3,8 +3,12 @@ import json
 import logging
 import signal
 import threading
+from urllib.parse import urlparse
 from typing import Dict, Any
 from websockets import ServerConnection
+from websockets.datastructures import Headers
+# from websockets.http import Response
+from websockets import Response, Request
 
 import rclpy
 from rclpy.node import Node
@@ -14,6 +18,16 @@ try:
     import websockets
 except Exception:
     websockets = None
+
+
+"""
+Test message
+
+{ "type": "cameraStreamOpenRequest", "camera": "Test Camera", "fps": 69420 }
+
+{ "type": "cameraStreamCloseRequest", "camera": "Test Camera" }
+
+"""
 
 
 class MCBridgeNode(Node):
@@ -88,6 +102,9 @@ async def consumer_handler(websocket: ServerConnection, node: MCBridgeNode):
         except json.JSONDecodeError:
             node.get_logger().error('Invalid JSON received from WS client')
             continue
+        except Exception as exc:
+            node.get_logger().error(f'WS consumer error: {exc}')
+            continue
         # Forward into ROS thread
         node.get_logger().info(f"WS -> ROS: {data.get('type')}")
         node.handle_ws_message(data)
@@ -107,7 +124,8 @@ async def producer_handler(websocket: ServerConnection, node: MCBridgeNode):
 
 async def ws_handler(websocket: ServerConnection, node: MCBridgeNode):
     # Accept only the expected mission-control path
-    path = websocket.request.path
+    raw_path = websocket.request.path
+    path = urlparse(raw_path).path.rstrip('/')
     if path != '/mission-control':
         await websocket.close(code=4000, reason='Invalid path')
         return
@@ -134,9 +152,12 @@ def start_rclpy_spin(node: MCBridgeNode) -> None:
 
 def _make_process_request():
     # return a small function that rejects non-/mission-control paths early
-    async def process_request(path, request_headers):
-        if path != '/mission-control':
-            return 404, [('Content-Type', 'text/plain')], b'Not Found'
+    async def process_request(ws: ServerConnection, request_headers: Request):
+        # normalized_path = urlparse(path).path.rstrip('/')
+        if ws.request.path != '/mission-control':
+            headers = Headers()
+            headers['Content-Type'] = 'text/plain'
+            return Response(404, 'Not Found', headers, b'Not Found')
         return None
 
     return process_request
@@ -156,13 +177,13 @@ async def main_async():
 
     async with websockets.serve(
         lambda ws: ws_handler(ws, node),
-        "localhost",
-        3001,
+        "0.0.0.0",
+        3001, # UPDATE devcontainer.json IF THIS EVER CHANGES
         process_request=_make_process_request()
     ):
         node.get_logger().info(
             'WebSocket server listening on '
-            'ws://localhost:3001/mission-control'
+            'ws://0.0.0.0:3001/mission-control'
         )
 
         await asyncio.Future()

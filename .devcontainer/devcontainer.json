@@ -1,6 +1,7 @@
 {
   "name": "ROS 2 Workspace humble-ros-base",
   "remoteUser": "rosdev",
+  "appPort": 3001,
   "build": {
       "dockerfile": "Dockerfile",
       "args": {
@@ -36,6 +37,7 @@
   "workspaceMount": "source=${localWorkspaceFolder},target=/home/rosdev/ros2_ws/src,type=bind",
   "mounts": [],
   "runArgs": [
-      "--net=host"
+      "--net=host",
+      "--add-host=host.docker.internal:host-gateway"
   ]
 }
