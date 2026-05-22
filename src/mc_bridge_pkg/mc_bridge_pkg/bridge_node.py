@@ -4,6 +4,7 @@ import logging
 import signal
 import threading
 from typing import Dict, Any
+from websockets import ServerConnection
 
 import rclpy
 from rclpy.node import Node
@@ -23,19 +24,18 @@ class MCBridgeNode(Node):
     as your schema matures.
     """
 
-    def __init__(self, loop: asyncio.AbstractEventLoop):
+    def __init__(self, loop: asyncio.AbstractEventLoop, out_queue: asyncio.Queue):
         """
-        Initialize MCBridgeNode. Loop is the event loop used for all 
-        web socket related communication. Out_queue is created to 
-        queue message payloads to the event loop. 
+        Initialize MCBridgeNode. Loop is the event loop used for all
+        websocket communication. Out_queue is created to queue message
+        payloads to the event loop.
 
         (i.e. payloads are added on subscriber callbacks to the queue
-        so that data can be sent to mission control via web socket)
-        
+        so that data can be sent to mission control via websocket)
         """
         super().__init__('mc_bridge_node')
         self.loop = loop
-        self.out_queue: asyncio.Queue = asyncio.Queue(loop=loop)
+        self.out_queue = out_queue
         self.ws_clients = set()
 
         # Publishers (example)
@@ -62,6 +62,9 @@ class MCBridgeNode(Node):
         This is executed in the ROS thread; keep it short and use ROS publishers
         to forward intent into the ROS graph.
         """
+
+        # TODO: CREATE CASES FOR EACH MESSAGE (i.e. publish mission control message to ROS)
+
         mtype = message.get('type')
         if mtype == 'driveRequest':
             msg = String()
@@ -76,9 +79,11 @@ class MCBridgeNode(Node):
             self.get_logger().warn(f'Unhandled WS message type: {mtype}')
 
 
-async def consumer_handler(websocket, node: MCBridgeNode):
+async def consumer_handler(websocket: ServerConnection, node: MCBridgeNode):
+    # Handles mission control -> ROS pipeline
     async for message in websocket:
         try:
+            # Convert message (JSON) to Python type
             data = json.loads(message)
         except json.JSONDecodeError:
             node.get_logger().error('Invalid JSON received from WS client')
@@ -88,7 +93,9 @@ async def consumer_handler(websocket, node: MCBridgeNode):
         node.handle_ws_message(data)
 
 
-async def producer_handler(websocket, node: MCBridgeNode):
+async def producer_handler(websocket: ServerConnection, node: MCBridgeNode):
+    # Handles ROS -> mission control pipeline; keep popping things from
+    # out_queue and sending over websocket
     while True:
         payload = await node.out_queue.get()
         try:
@@ -98,8 +105,9 @@ async def producer_handler(websocket, node: MCBridgeNode):
             break
 
 
-async def ws_handler(websocket, path, node: MCBridgeNode):
+async def ws_handler(websocket: ServerConnection, node: MCBridgeNode):
     # Accept only the expected mission-control path
+    path = websocket.request.path
     if path != '/mission-control':
         await websocket.close(code=4000, reason='Invalid path')
         return
@@ -133,52 +141,50 @@ def _make_process_request():
 
     return process_request
 
+async def main_async():
+    loop = asyncio.get_running_loop()
+    out_queue = asyncio.Queue()
 
-def main() -> None:
+    node = MCBridgeNode(loop, out_queue)
+
+    spin_thread = threading.Thread(
+        target=start_rclpy_spin,
+        args=(node,),
+        daemon=True
+    )
+    spin_thread.start()
+
+    async with websockets.serve(
+        lambda ws: ws_handler(ws, node),
+        "localhost",
+        3001,
+        process_request=_make_process_request()
+    ):
+        node.get_logger().info(
+            'WebSocket server listening on '
+            'ws://localhost:3001/mission-control'
+        )
+
+        await asyncio.Future()
+
+
+def main():
     if websockets is None:
-        print('Missing dependency: websockets. Install with `pip install websockets`')
+        print('Missing dependency: websockets')
         return
 
     logging.basicConfig(level=logging.INFO)
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
 
     rclpy.init()
-    node = MCBridgeNode(loop)
-
-    # Spin ROS in a background thread so asyncio can run in main thread
-    spin_thread = threading.Thread(target=start_rclpy_spin, args=(node,), daemon=True)
-    spin_thread.start()
-
-    # Start websocket server
-    server_coro = websockets.serve(lambda ws, path: ws_handler(ws, path, node), '0.0.0.0', 3001, process_request=_make_process_request())
-    server = loop.run_until_complete(server_coro)
-    node.get_logger().info('WebSocket server listening on ws://0.0.0.0:3001/mission-control')
-
-    # graceful shutdown handlers
-    def _shutdown(signum, frame):
-        node.get_logger().info('Shutting down...')
-        server.close()
-        loop.call_soon_threadsafe(loop.stop)
-        try:
-            rclpy.shutdown()
-        except Exception:
-            pass
-
-    signal.signal(signal.SIGINT, _shutdown)
-    signal.signal(signal.SIGTERM, _shutdown)
 
     try:
-        loop.run_forever()
-    finally:
-        server.close()
-        loop.run_until_complete(server.wait_closed())
-        try:
-            node.destroy_node()
-        except Exception:
-            pass
-        rclpy.shutdown()
+        asyncio.run(main_async())
 
+    except KeyboardInterrupt:
+        pass
+
+    finally:
+        rclpy.shutdown()
 
 if __name__ == '__main__':
     main()
