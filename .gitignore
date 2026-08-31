@@ -1,0 +1,17 @@
+# ROS 2 workspace output
+build/
+install/
+log/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Editors and operating systems
+.vscode/
+.DS_Store

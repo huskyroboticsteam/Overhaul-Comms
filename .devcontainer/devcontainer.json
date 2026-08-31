@@ -1,43 +1,45 @@
 {
-  "name": "ROS 2 Workspace humble-ros-base",
+  "name": "ROS 2 Jazzy Workspace",
   "remoteUser": "rosdev",
-  "appPort": 3001,
+  "forwardPorts": [3001],
+  "portsAttributes": {
+    "3001": {
+      "label": "Mission Control bridge",
+      "onAutoForward": "silent"
+    }
+  },
   "build": {
-      "dockerfile": "Dockerfile",
-      "args": {
-          "USERNAME": "rosdev",
-          "GID": "1000",
-          "UID": "1000"
-      }
+    "dockerfile": "Dockerfile",
+    "args": {
+      "USERNAME": "rosdev",
+      "GID": "1000",
+      "UID": "1000"
+    }
   },
   "customizations": {
-      "vscode": {
-          "extensions": [
-              "ms-python.python",
-              "charliermarsh.ruff",
-              "ms-vscode.cpptools-extension-pack",
-              "ms-iot.vscode-ros",
-              "smilerobotics.urdf",
-              "redhat.vscode-xml",
-              "tamasfe.even-better-toml",
-              "timonwong.shellcheck",
-              "yzhang.markdown-all-in-one",
-          ],
-          "settings": {
-              "files.associations": {
-                  "*.rviz": "yaml",
-                  "*.srdf": "xml",
-                  "*.urdf": "xml",
-                  "*.xacro": "xml"
-              }
-          }
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "charliermarsh.ruff",
+        "ms-vscode.cpptools-extension-pack",
+        "ms-iot.vscode-ros",
+        "smilerobotics.urdf",
+        "redhat.vscode-xml",
+        "tamasfe.even-better-toml",
+        "timonwong.shellcheck",
+        "yzhang.markdown-all-in-one"
+      ],
+      "settings": {
+        "files.associations": {
+          "*.rviz": "yaml",
+          "*.srdf": "xml",
+          "*.urdf": "xml",
+          "*.xacro": "xml"
+        }
       }
+    }
   },
   "workspaceFolder": "/home/rosdev/ros2_ws",
-  "workspaceMount": "source=${localWorkspaceFolder},target=/home/rosdev/ros2_ws/src,type=bind",
-  "mounts": [],
-  "runArgs": [
-      "--net=host",
-      "--add-host=host.docker.internal:host-gateway"
-  ]
+  "workspaceMount": "source=${localWorkspaceFolder},target=/home/rosdev/ros2_ws,type=bind",
+  "mounts": []
 }

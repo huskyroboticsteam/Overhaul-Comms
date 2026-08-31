@@ -1,39 +1,53 @@
-FROM ros:humble-ros-base
+FROM ros:jazzy-ros-base
 
 ARG USERNAME=rosdev
 ARG UID=1000
 ARG GID=$UID
 
-# Install some dependencies packages
-RUN apt update -q \
-    && apt upgrade -q -y \
-    && apt install -y --no-install-recommends \
-    software-properties-common \
-    python3-pip \
-    xauth \
-    && apt clean \
-    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+ENV ROS_WORKSPACE=/home/${USERNAME}/ros2_ws \
+    RMW_IMPLEMENTATION=rmw_cyclonedds_cpp \
+    CYCLONEDDS_URI=file:///home/${USERNAME}/ros2_ws/config/cyclone/laptop.xml
 
-# Copy requirements and install Python packages
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        python3-pip \
+        ros-jazzy-rmw-cyclonedds-cpp \
+        sudo \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY ./requirements.txt /tmp/requirements.txt
-RUN pip3 install --no-cache-dir -r /tmp/requirements.txt \
+RUN python3 -m pip install \
+        --break-system-packages \
+        --no-cache-dir \
+        --requirement /tmp/requirements.txt \
     && rm /tmp/requirements.txt
 
-# Create and switch to user
-RUN groupadd -g $GID $USERNAME \
-    && useradd -lm -u $UID -g $USERNAME -s /bin/bash $USERNAME \
-    && echo "$USERNAME ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+RUN existing_container_group="$(getent group "$GID" | cut -d: -f1)" \
+    && if [ -z "$existing_container_group" ]; then \
+        groupadd --gid "$GID" "$USERNAME"; \
+    elif [ "$existing_container_group" != "$USERNAME" ]; then \
+        groupmod --new-name "$USERNAME" "$existing_container_group"; \
+    fi \
+    && existing_container_user="$(getent passwd "$UID" | cut -d: -f1)" \
+    && if [ -z "$existing_container_user" ]; then \
+        useradd --create-home --uid "$UID" --gid "$USERNAME" \
+            --shell /bin/bash "$USERNAME"; \
+    elif [ "$existing_container_user" != "$USERNAME" ]; then \
+        usermod --login "$USERNAME" --home "/home/$USERNAME" \
+            --move-home "$existing_container_user"; \
+    fi \
+    && usermod --gid "$USERNAME" "$USERNAME" \
+    && echo "$USERNAME ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/$USERNAME \
+    && chmod 0440 /etc/sudoers.d/$USERNAME
 USER $USERNAME
 
-# Create workspace so that user own this directory
-RUN mkdir -p /home/$USERNAME/ros2_ws/src
-WORKDIR /home/$USERNAME/ros2_ws
+RUN mkdir -p "${ROS_WORKSPACE}/src" \
+    && printf '%s\n' \
+        'source "/opt/ros/${ROS_DISTRO}/setup.bash"' \
+        '[ ! -f "${ROS_WORKSPACE}/install/setup.bash" ] || source "${ROS_WORKSPACE}/install/setup.bash"' \
+        >> /home/$USERNAME/.bashrc
+WORKDIR ${ROS_WORKSPACE}
 
-# Copy configuration files
-RUN echo 'source /opt/ros/'$ROS_DISTRO'/setup.bash' >> /home/$USERNAME/.bashrc \
-    && echo 'source /home/'$USERNAME'/ros2_ws/install/setup.bash' >> /home/$USERNAME/.bashrc
-
-# Setup entrypoint
-COPY ./ros_entrypoint.sh /
+COPY --chmod=0755 ./ros_entrypoint.sh /ros_entrypoint.sh
 ENTRYPOINT ["/ros_entrypoint.sh"]
 CMD ["bash"]
