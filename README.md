@@ -35,3 +35,11 @@ implemented.
 
 WebSocket host, port, path, queue capacities, topics, and QoS depth are ROS
 parameters. The server binds to loopback by default and accepts one controller.
+
+## Continuous integration
+
+GitHub Actions runs on pull requests, merge queues, and pushes to `main`. It
+checks Python linting, types, tests, and configuration files; builds and tests
+the workspace on ROS 2 Jazzy; and builds and smoke-tests the development
+container. These three jobs are intended to be required branch-protection
+checks.

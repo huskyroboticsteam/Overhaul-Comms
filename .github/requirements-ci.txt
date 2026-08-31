@@ -1,0 +1,5 @@
+# Host-side CI tools. Runtime dependencies remain in the devcontainer file.
+flake8==7.3.0
+mypy==2.3.1
+pydocstyle==6.3.0
+pytest==9.1.1

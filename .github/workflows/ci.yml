@@ -1,0 +1,192 @@
+name: CI
+
+on:
+  merge_group:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  python-quality:
+    name: Python quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            .devcontainer/requirements.txt
+            .github/requirements-ci.txt
+            src/mc_bridge/setup.py
+
+      - name: Install dependencies
+        run: >-
+          python -m pip install
+          --requirement .devcontainer/requirements.txt
+          --requirement .github/requirements-ci.txt
+          --editable src/mc_bridge
+
+      - name: Check dependency consistency
+        run: python -m pip check
+
+      - name: Lint Python
+        run: |
+          python -m flake8 \
+            src/mc_bridge/mc_bridge \
+            src/mc_bridge/test \
+            src/mc_bridge/setup.py
+          python -m pydocstyle \
+            src/mc_bridge/mc_bridge \
+            src/mc_bridge/test \
+            src/mc_bridge/setup.py
+
+      - name: Type-check transport-independent code
+        run: |
+          python -m mypy --strict \
+            src/mc_bridge/mc_bridge/packet.py \
+            src/mc_bridge/mc_bridge/session_inbox.py \
+            src/mc_bridge/mc_bridge/websocket_server.py
+          python -m mypy \
+            --strict \
+            --ignore-missing-imports \
+            --disable-error-code=misc \
+            src/mc_bridge/mc_bridge/bridge_node.py \
+            src/mc_bridge/mc_bridge/main.py
+
+      - name: Test transport-independent code
+        run: |
+          python -m pytest --quiet src/mc_bridge/test \
+            --ignore=src/mc_bridge/test/test_flake8.py \
+            --ignore=src/mc_bridge/test/test_pep257.py
+
+      - name: Validate configuration files
+        run: |
+          python -m json.tool .devcontainer/devcontainer.json >/dev/null
+          python -c "from xml.etree import ElementTree; ElementTree.parse('config/cyclone/laptop.xml'); ElementTree.parse('config/cyclone/rover.xml')"
+          bash -n .devcontainer/ros_entrypoint.sh
+
+  ros-jazzy:
+    name: ROS 2 Jazzy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    container:
+      image: ros:jazzy-ros-base
+    defaults:
+      run:
+        shell: bash
+    env:
+      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+      CYCLONEDDS_URI: file://${{ github.workspace }}/config/cyclone/laptop.xml
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install ROS and Python dependencies
+        run: |
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get install --yes --no-install-recommends \
+            python3-pip \
+            ros-jazzy-rmw-cyclonedds-cpp
+          if [[ ! -e /etc/ros/rosdep/sources.list.d/20-default.list ]]; then
+            rosdep init
+          fi
+          rosdep update --rosdistro jazzy
+          rosdep install \
+            --from-paths src \
+            --ignore-src \
+            --rosdistro jazzy \
+            --yes
+          python3 -m pip install \
+            --break-system-packages \
+            --requirement .devcontainer/requirements.txt
+
+      - name: Build workspace
+        run: |
+          source /opt/ros/jazzy/setup.bash
+          colcon build \
+            --symlink-install \
+            --event-handlers console_direct+
+
+      - name: Smoke-test bridge runtime
+        run: |
+          source /opt/ros/jazzy/setup.bash
+          source install/setup.bash
+          timeout 10s python3 <<'PYTHON'
+          import rclpy
+          from rclpy.signals import SignalHandlerOptions
+
+          import mc_bridge.main
+          from mc_bridge.bridge_node import create_node
+
+          rclpy.init(signal_handler_options=SignalHandlerOptions.NO)
+          try:
+              create_node().destroy_node()
+          finally:
+              if rclpy.ok():
+                  rclpy.shutdown()
+          PYTHON
+
+      - name: Test workspace
+        run: |
+          source /opt/ros/jazzy/setup.bash
+          source install/setup.bash
+          colcon test --event-handlers console_direct+
+
+      - name: Report and gate test results
+        if: always()
+        run: |
+          source /opt/ros/jazzy/setup.bash
+          colcon test-result --verbose
+
+  devcontainer:
+    name: Devcontainer
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+
+      - name: Build devcontainer image
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .devcontainer
+          load: true
+          push: false
+          tags: overhaul-comms-devcontainer:ci
+          cache-from: type=gha,scope=devcontainer
+          cache-to: type=gha,mode=max,scope=devcontainer
+
+      - name: Smoke-test devcontainer image
+        run: |
+          docker run --rm \
+            --volume "$GITHUB_WORKSPACE:/home/rosdev/ros2_ws:ro" \
+            overhaul-comms-devcontainer:ci \
+            timeout 10s python3 -c "import importlib.metadata as metadata, os; from pathlib import Path; import rclpy; assert metadata.version('websockets') == '14.2'; assert os.environ['RMW_IMPLEMENTATION'] == 'rmw_cyclonedds_cpp'; assert Path('/home/rosdev/ros2_ws/config/cyclone/laptop.xml').is_file(); rclpy.init(); node = rclpy.create_node('ci_container_smoke_test'); node.destroy_node(); rclpy.shutdown()"
