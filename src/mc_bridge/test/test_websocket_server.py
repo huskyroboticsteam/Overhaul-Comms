@@ -102,6 +102,8 @@ def test_second_controller_is_rejected_without_disrupting_first() -> None:
     ('payload', 'expected_code'),
     [
         ('not-json', 1007),
+        ('{"type":"driveRequest","straight":2,"steer":0}', 1007),
+        ('{"type":"roverPositionReport"}', 1007),
         (b'not-text', 1003),
     ],
 )

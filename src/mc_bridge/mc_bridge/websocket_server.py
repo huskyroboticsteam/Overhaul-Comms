@@ -20,6 +20,7 @@ from mc_bridge.packet import (
     PacketValidationError,
     decode_packet,
     encode_packet,
+    validate_packet,
 )
 
 MessageHandler: TypeAlias = Callable[[JsonObject], bool]
@@ -119,6 +120,8 @@ class SingleControllerWebSocketServer:
         port: int = 3001,
         path: str = '/mission-control',
         outbound_capacity: int = 64,
+        ping_interval: float = 1.0,
+        ping_timeout: float = 1.0,
         connect_handler: ConnectHandler | None = None,
         disconnect_handler: DisconnectHandler | None = None,
         logger: logging.Logger | None = None,
@@ -128,12 +131,16 @@ class SingleControllerWebSocketServer:
             raise ValueError('WebSocket path must start with "/"')
         if outbound_capacity < 1:
             raise ValueError('Outbound capacity must be positive')
+        if ping_interval <= 0.0 or ping_timeout <= 0.0:
+            raise ValueError('WebSocket ping settings must be positive')
 
         self._message_handler = message_handler
         self._host = host
         self._port = port
         self._path = path
         self._outbound_capacity = outbound_capacity
+        self._ping_interval = ping_interval
+        self._ping_timeout = ping_timeout
         self._connect_handler = connect_handler or (lambda: None)
         self._disconnect_handler = disconnect_handler or (lambda: None)
         self._logger = logger or logging.getLogger(__name__)
@@ -178,6 +185,8 @@ class SingleControllerWebSocketServer:
             self._port,
             process_request=self._process_request,
             max_queue=16,
+            ping_interval=self._ping_interval,
+            ping_timeout=self._ping_timeout,
         )
         return self
 
@@ -298,6 +307,7 @@ class SingleControllerWebSocketServer:
 
             try:
                 message = decode_packet(raw_message)
+                validate_packet(message, direction='request')
             except PacketValidationError:
                 await websocket.close(code=1007, reason='Invalid packet')
                 return

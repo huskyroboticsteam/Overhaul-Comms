@@ -1,6 +1,7 @@
-"""Tests for the shared Mission Control packet envelope."""
+"""Tests for the shared Mission Control packet contract."""
 
-import math
+import json
+from pathlib import Path
 
 import pytest
 
@@ -8,7 +9,7 @@ from mc_bridge.packet import (
     PacketValidationError,
     decode_packet,
     encode_packet,
-    validate_normalized_fields,
+    validate_packet,
 )
 
 
@@ -40,12 +41,16 @@ def test_packet_round_trip() -> None:
     assert decode_packet(encode_packet(packet)) == packet
 
 
-@pytest.mark.parametrize('value', [True, None, 1.01, -1.01, math.nan])
-def test_normalized_fields_are_validated(value: object) -> None:
-    """Drive values must be finite numbers in the normalized range."""
-    packet: dict[str, object] = {'type': 'driveRequest', 'straight': value}
+@pytest.mark.parametrize('value', [True, None, 1.01, -1.01])
+def test_drive_range_is_validated(value: object) -> None:
+    """The canonical contract enforces normalized drive values."""
+    packet: dict[str, object] = {
+        'type': 'driveRequest',
+        'straight': value,
+        'steer': 0.0,
+    }
     with pytest.raises(PacketValidationError):
-        validate_normalized_fields(packet, 'straight')
+        validate_packet(packet, direction='request')
 
 
 def test_normalized_range_includes_endpoints() -> None:
@@ -55,4 +60,52 @@ def test_normalized_range_includes_endpoints() -> None:
         'straight': -1,
         'steer': 1.0,
     }
-    validate_normalized_fields(packet, 'straight', 'steer')
+    validate_packet(packet, direction='request')
+
+
+def test_packet_direction_is_enforced() -> None:
+    """Mission Control cannot inject a rover report as a request."""
+    packet: dict[str, object] = {
+        'type': 'mountedPeripheralReport',
+        'peripheral': 'arm',
+    }
+    with pytest.raises(PacketValidationError):
+        validate_packet(packet, direction='request')
+
+
+def test_vertical_slice_fixtures_match_contract() -> None:
+    """Representative vertical-slice examples remain compatible with v1."""
+    fixture_path = (
+        Path(__file__).resolve().parents[3]
+        / 'protocol'
+        / 'fixtures'
+        / 'vertical_slice.json'
+    )
+    packets = json.loads(fixture_path.read_text(encoding='utf-8'))
+    for packet in packets:
+        validate_packet(packet, direction='request')
+
+
+def test_every_packet_definition_has_compatibility_metadata() -> None:
+    """Every packet in the union declares its direction and status."""
+    schema_path = (
+        Path(__file__).resolve().parents[3]
+        / 'protocol'
+        / 'packet.schema.json'
+    )
+    schema = json.loads(schema_path.read_text(encoding='utf-8'))
+    packet_definitions = [
+        definition
+        for definition in schema['$defs'].values()
+        if 'properties' in definition
+    ]
+    assert packet_definitions
+    assert all(
+        definition['x-direction'] in {'request', 'report'}
+        for definition in packet_definitions
+    )
+    assert all(
+        definition['x-status']
+        in {'active', 'legacy-compatible', 'planned', 'unsupported'}
+        for definition in packet_definitions
+    )

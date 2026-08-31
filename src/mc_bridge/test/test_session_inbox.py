@@ -26,6 +26,36 @@ def test_drive_requests_are_latest_value() -> None:
     assert handled[0]['straight'] == 1.0
 
 
+def test_drive_modes_share_one_latest_motion_slot() -> None:
+    """A newer tank command replaces an unhandled arcade command."""
+    inbox = SessionInbox(event_capacity=2)
+    inbox.begin()
+    assert inbox.offer(
+        {'type': 'driveRequest', 'straight': 1.0, 'steer': 0.0},
+    )
+    assert inbox.offer(
+        {'type': 'tankDriveRequest', 'left': -1.0, 'right': 1.0},
+    )
+    assert inbox.take(event_limit=1)[0][1]['type'] == 'tankDriveRequest'
+
+
+def test_emergency_stop_has_priority() -> None:
+    """A pending stop cannot be coalesced away and discards pending motion."""
+    inbox = SessionInbox(event_capacity=1)
+    inbox.begin()
+    assert inbox.offer({'type': 'emergencyStopRequest', 'stop': True})
+    assert inbox.offer({'type': 'emergencyStopRequest', 'stop': False})
+    assert inbox.offer(
+        {'type': 'driveRequest', 'straight': 1.0, 'steer': 0.0},
+    )
+
+    packets = inbox.take(event_limit=1)
+    assert [packet[1]['type'] for packet in packets] == [
+        'emergencyStopRequest',
+    ]
+    assert packets[0][1]['stop'] is True
+
+
 def test_closed_session_packets_cannot_reach_replacement() -> None:
     """A packet already taken from an old generation is still rejected."""
     inbox = SessionInbox(event_capacity=2)

@@ -18,7 +18,7 @@ class SessionInbox:
     """Bound input while preventing packets from crossing sessions."""
 
     def __init__(self, event_capacity: int) -> None:
-        """Create an inbox with a latest-value drive slot."""
+        """Create an inbox with priority and latest-motion slots."""
         if event_capacity < 1:
             raise ValueError('Event capacity must be positive')
         self._events: queue.Queue[SessionPacket] = queue.Queue(
@@ -27,21 +27,24 @@ class SessionInbox:
         self._lock = threading.Lock()
         self._generation = 0
         self._active_generation: int | None = None
-        self._pending_drive: SessionPacket | None = None
+        self._pending_estop: SessionPacket | None = None
+        self._pending_motion: SessionPacket | None = None
 
     def begin(self) -> None:
         """Open a fresh packet generation for a connected controller."""
         with self._lock:
             self._generation += 1
             self._active_generation = self._generation
-            self._pending_drive = None
+            self._pending_estop = None
+            self._pending_motion = None
             self._discard_events()
 
     def end(self) -> None:
         """Invalidate the controller and discard all of its pending input."""
         with self._lock:
             self._active_generation = None
-            self._pending_drive = None
+            self._pending_estop = None
+            self._pending_motion = None
             self._discard_events()
 
     def offer(self, packet: JsonObject) -> bool:
@@ -52,8 +55,14 @@ class SessionInbox:
             if generation is None:
                 return False
             session_packet = generation, snapshot
-            if snapshot['type'] == 'driveRequest':
-                self._pending_drive = session_packet
+            packet_type = snapshot['type']
+            if packet_type == 'emergencyStopRequest':
+                pending_stop = self._pending_estop
+                if pending_stop is None or snapshot.get('stop') is True:
+                    self._pending_estop = session_packet
+                return True
+            if packet_type in ('driveRequest', 'tankDriveRequest'):
+                self._pending_motion = session_packet
                 return True
             try:
                 self._events.put_nowait(session_packet)
@@ -62,14 +71,20 @@ class SessionInbox:
             return True
 
     def take(self, event_limit: int) -> list[SessionPacket]:
-        """Take the latest drive packet and a bounded event batch."""
+        """Take e-stop first, then latest motion and a bounded event batch."""
         if event_limit < 1:
             raise ValueError('Event limit must be positive')
         pending: list[SessionPacket] = []
         with self._lock:
-            if self._pending_drive is not None:
-                pending.append(self._pending_drive)
-                self._pending_drive = None
+            if self._pending_estop is not None:
+                pending.append(self._pending_estop)
+                stop_requested = self._pending_estop[1].get('stop') is True
+                self._pending_estop = None
+                if stop_requested:
+                    self._pending_motion = None
+            if self._pending_motion is not None:
+                pending.append(self._pending_motion)
+                self._pending_motion = None
             for _ in range(event_limit):
                 try:
                     pending.append(self._events.get_nowait())

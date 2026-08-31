@@ -1,13 +1,9 @@
-"""Setuptools configuration for mc_bridge."""
+"""Setuptools configuration for rover_safety."""
 
-from pathlib import Path
 from setuptools import find_packages, setup
 
 
-package_name = 'mc_bridge'
-contract = Path(__file__).resolve().parents[2] / 'protocol' / (
-    'packet.schema.json'
-)
+package_name = 'rover_safety'
 
 setup(
     name=package_name,
@@ -19,24 +15,17 @@ setup(
             ['resource/' + package_name],
         ),
         ('share/' + package_name, ['package.xml']),
-        ('share/' + package_name + '/protocol', [str(contract)]),
     ],
-    install_requires=[
-        'jsonschema==4.23.0',
-        'setuptools',
-        'websockets==14.2',
-    ],
+    install_requires=['setuptools'],
     zip_safe=True,
     maintainer='Husky Robotics',
     maintainer_email='jzhou44@cs.washington.edu',
-    description=(
-        'Communication bridge for Mission Control and rover ROS 2 nodes'
-    ),
+    description='Rover-side motion watchdog and emergency-stop gate',
     license='Apache-2.0',
     extras_require={'test': ['pytest']},
     entry_points={
         'console_scripts': [
-            'mc_bridge = mc_bridge.main:main',
+            'rover_watchdog = rover_safety.watchdog_node:main',
         ],
     },
 )

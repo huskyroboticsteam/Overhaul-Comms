@@ -42,6 +42,8 @@ async def run_bridge(node: MCBridgeNode) -> None:
         port=settings.websocket_port,
         path=settings.websocket_path,
         outbound_capacity=settings.outbound_capacity,
+        ping_interval=settings.ping_interval_sec,
+        ping_timeout=settings.ping_timeout_sec,
         connect_handler=node.begin_ws_session,
         disconnect_handler=node.end_ws_session,
     )

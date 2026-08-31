@@ -1,0 +1,311 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://huskyrobotics.com/schemas/mission-control/v1/packet.schema.json",
+  "title": "Mission Control packet contract v1",
+  "description": "Canonical packet union for Mission Control and the legacy Resurgence rover.",
+  "oneOf": [
+    {"$ref": "#/$defs/armIKRequest"},
+    {"$ref": "#/$defs/cameraFrameRequest"},
+    {"$ref": "#/$defs/cameraStreamCloseRequest"},
+    {"$ref": "#/$defs/cameraStreamOpenRequest"},
+    {"$ref": "#/$defs/driveRequest"},
+    {"$ref": "#/$defs/emergencyStopRequest"},
+    {"$ref": "#/$defs/jointPositionRequest"},
+    {"$ref": "#/$defs/jointPowerRequest"},
+    {"$ref": "#/$defs/operationModeRequest"},
+    {"$ref": "#/$defs/servoPositionRequest"},
+    {"$ref": "#/$defs/stepperTurnAngleRequest"},
+    {"$ref": "#/$defs/tankDriveRequest"},
+    {"$ref": "#/$defs/waypointNavRequest"},
+    {"$ref": "#/$defs/armIKEnabledReport"},
+    {"$ref": "#/$defs/cameraFrameReport"},
+    {"$ref": "#/$defs/cameraStreamReport"},
+    {"$ref": "#/$defs/jointPositionReport"},
+    {"$ref": "#/$defs/mountedPeripheralReport"},
+    {"$ref": "#/$defs/roverPositionReport"},
+    {"$ref": "#/$defs/servoPositionReport"}
+  ],
+  "$defs": {
+    "normalized": {"type": "number", "minimum": -1, "maximum": 1},
+    "finiteNumber": {"type": "number"},
+    "camera": {"enum": ["mast", "hand", "wrist"]},
+    "joint": {
+      "enum": [
+        "armBase", "shoulder", "elbow", "forearm", "wristPitch",
+        "wristRoll", "hand", "handActuator", "ikUp", "ikForward",
+        "fourBarLinkage", "drillActuator", "drillMotor"
+      ],
+      "description": "The final three names are legacy Resurgence science joints."
+    },
+    "servo": {
+      "enum": ["mast", "microscope", "syringe", "cuvette", "filter", "soilBox"],
+      "description": "Mission Control currently exposes mast; Resurgence exposes the science servos."
+    },
+    "stepper": {"enum": ["plunger", "judges", "mast", "lock", "lazySusan"]},
+    "armIKRequest": {
+      "x-status": "legacy-compatible",
+      "x-direction": "request",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "enabled"],
+      "properties": {
+        "type": {"const": "armIKRequest"},
+        "enabled": {"type": "boolean"}
+      }
+    },
+    "cameraFrameRequest": {
+      "x-status": "active",
+      "x-direction": "request",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "camera"],
+      "properties": {
+        "type": {"const": "cameraFrameRequest"},
+        "camera": {"$ref": "#/$defs/camera"}
+      }
+    },
+    "cameraStreamCloseRequest": {
+      "x-status": "active",
+      "x-direction": "request",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "camera"],
+      "properties": {
+        "type": {"const": "cameraStreamCloseRequest"},
+        "camera": {"$ref": "#/$defs/camera"}
+      }
+    },
+    "cameraStreamOpenRequest": {
+      "x-status": "active",
+      "x-direction": "request",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "camera", "fps"],
+      "properties": {
+        "type": {"const": "cameraStreamOpenRequest"},
+        "camera": {"$ref": "#/$defs/camera"},
+        "fps": {"type": "integer", "minimum": 1}
+      }
+    },
+    "driveRequest": {
+      "x-status": "active",
+      "x-direction": "request",
+      "x-bridge-support": "active",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "straight", "steer"],
+      "properties": {
+        "type": {"const": "driveRequest"},
+        "straight": {"$ref": "#/$defs/normalized"},
+        "steer": {"$ref": "#/$defs/normalized"}
+      }
+    },
+    "emergencyStopRequest": {
+      "x-status": "active",
+      "x-direction": "request",
+      "x-bridge-support": "active",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "stop"],
+      "properties": {
+        "type": {"const": "emergencyStopRequest"},
+        "stop": {"type": "boolean"}
+      }
+    },
+    "jointPositionRequest": {
+      "x-status": "planned",
+      "x-direction": "request",
+      "description": "Resurgence accepts integer positions but does not execute them; Mission Control types any number.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "joint", "position"],
+      "properties": {
+        "type": {"const": "jointPositionRequest"},
+        "joint": {"$ref": "#/$defs/joint"},
+        "position": {"$ref": "#/$defs/finiteNumber"}
+      }
+    },
+    "jointPowerRequest": {
+      "x-status": "active",
+      "x-direction": "request",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "joint", "power"],
+      "properties": {
+        "type": {"const": "jointPowerRequest"},
+        "joint": {"$ref": "#/$defs/joint"},
+        "power": {"$ref": "#/$defs/normalized"}
+      }
+    },
+    "operationModeRequest": {
+      "x-status": "active",
+      "x-direction": "request",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "mode"],
+      "properties": {
+        "type": {"const": "operationModeRequest"},
+        "mode": {"enum": ["teleoperation", "autonomous"]}
+      }
+    },
+    "servoPositionRequest": {
+      "x-status": "planned",
+      "x-direction": "request",
+      "description": "The field shape agrees, but Mission Control and Resurgence expose disjoint servo names.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "servo", "position"],
+      "properties": {
+        "type": {"const": "servoPositionRequest"},
+        "servo": {"$ref": "#/$defs/servo"},
+        "position": {"$ref": "#/$defs/finiteNumber"}
+      }
+    },
+    "stepperTurnAngleRequest": {
+      "x-status": "legacy-compatible",
+      "x-direction": "request",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "stepper", "angle"],
+      "properties": {
+        "type": {"const": "stepperTurnAngleRequest"},
+        "stepper": {"$ref": "#/$defs/stepper"},
+        "angle": {"type": "integer", "minimum": -32768, "maximum": 32767}
+      }
+    },
+    "tankDriveRequest": {
+      "x-status": "active",
+      "x-direction": "request",
+      "x-bridge-support": "active",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "left", "right"],
+      "properties": {
+        "type": {"const": "tankDriveRequest"},
+        "left": {"$ref": "#/$defs/normalized"},
+        "right": {"$ref": "#/$defs/normalized"}
+      }
+    },
+    "waypointNavRequest": {
+      "x-status": "active",
+      "x-direction": "request",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "latitude", "longitude", "isApproximate", "isGate"],
+      "properties": {
+        "type": {"const": "waypointNavRequest"},
+        "latitude": {"type": "number", "minimum": -90, "maximum": 90},
+        "longitude": {"type": "number", "minimum": -180, "maximum": 180},
+        "isApproximate": {"type": "boolean"},
+        "isGate": {"type": "boolean"}
+      }
+    },
+    "armIKEnabledReport": {
+      "x-status": "legacy-compatible",
+      "x-direction": "report",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "enabled"],
+      "properties": {
+        "type": {"const": "armIKEnabledReport"},
+        "enabled": {"type": "boolean"}
+      }
+    },
+    "cameraFrameReport": {
+      "x-status": "active",
+      "x-direction": "report",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "camera", "data", "lat", "lon", "alt", "orientX", "orientY", "orientZ", "orientW"],
+      "properties": {
+        "type": {"const": "cameraFrameReport"},
+        "camera": {"$ref": "#/$defs/camera"},
+        "data": {"type": "string", "contentEncoding": "base64"},
+        "lat": {"$ref": "#/$defs/finiteNumber"},
+        "lon": {"$ref": "#/$defs/finiteNumber"},
+        "alt": {"$ref": "#/$defs/finiteNumber"},
+        "orientX": {"$ref": "#/$defs/finiteNumber"},
+        "orientY": {"$ref": "#/$defs/finiteNumber"},
+        "orientZ": {"$ref": "#/$defs/finiteNumber"},
+        "orientW": {"$ref": "#/$defs/finiteNumber"}
+      }
+    },
+    "cameraStreamReport": {
+      "x-status": "planned",
+      "x-direction": "report",
+      "description": "Mission Control declares number[][] or null; the byte framing and encoding still need capture fixtures.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "camera", "data"],
+      "properties": {
+        "type": {"const": "cameraStreamReport"},
+        "camera": {"$ref": "#/$defs/camera"},
+        "data": {
+          "oneOf": [
+            {"type": "null"},
+            {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": {"type": "integer", "minimum": 0, "maximum": 255}
+              }
+            }
+          ]
+        }
+      }
+    },
+    "jointPositionReport": {
+      "x-status": "active",
+      "x-direction": "report",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "joint", "position"],
+      "properties": {
+        "type": {"const": "jointPositionReport"},
+        "joint": {"$ref": "#/$defs/joint"},
+        "position": {"$ref": "#/$defs/finiteNumber"}
+      }
+    },
+    "mountedPeripheralReport": {
+      "x-status": "active",
+      "x-direction": "report",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "peripheral"],
+      "properties": {
+        "type": {"const": "mountedPeripheralReport"},
+        "peripheral": {"enum": ["arm", "science", "none", null]}
+      }
+    },
+    "roverPositionReport": {
+      "x-status": "active",
+      "x-direction": "report",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "orientW", "orientX", "orientY", "orientZ", "lon", "lat", "alt", "recency"],
+      "properties": {
+        "type": {"const": "roverPositionReport"},
+        "orientW": {"$ref": "#/$defs/finiteNumber"},
+        "orientX": {"$ref": "#/$defs/finiteNumber"},
+        "orientY": {"$ref": "#/$defs/finiteNumber"},
+        "orientZ": {"$ref": "#/$defs/finiteNumber"},
+        "lon": {"$ref": "#/$defs/finiteNumber"},
+        "lat": {"$ref": "#/$defs/finiteNumber"},
+        "alt": {"$ref": "#/$defs/finiteNumber"},
+        "recency": {"$ref": "#/$defs/finiteNumber"}
+      }
+    },
+    "servoPositionReport": {
+      "x-status": "planned",
+      "x-direction": "report",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "servo", "position"],
+      "properties": {
+        "type": {"const": "servoPositionReport"},
+        "servo": {"$ref": "#/$defs/servo"},
+        "position": {"$ref": "#/$defs/finiteNumber"}
+      }
+    }
+  }
+}

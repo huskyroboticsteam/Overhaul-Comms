@@ -1,0 +1,5 @@
+[
+  {"type": "driveRequest", "straight": 0.5, "steer": -0.25},
+  {"type": "tankDriveRequest", "left": -1.0, "right": 1.0},
+  {"type": "emergencyStopRequest", "stop": true}
+]

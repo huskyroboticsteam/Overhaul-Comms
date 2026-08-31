@@ -3,8 +3,13 @@
 from __future__ import annotations
 
 import json
+from functools import lru_cache
 import math
+from pathlib import Path
 from typing import TypeAlias, cast
+
+from jsonschema import Draft202012Validator  # type: ignore[import-untyped]
+from jsonschema.exceptions import best_match  # type: ignore[import-untyped]
 
 
 JsonObject: TypeAlias = dict[str, object]
@@ -40,21 +45,18 @@ def encode_packet(packet: JsonObject) -> str:
         ) from error
 
 
-def validate_normalized_fields(
-    packet: JsonObject,
-    *field_names: str,
-) -> None:
-    """Require finite numeric fields in the inclusive range [-1, 1]."""
-    for field_name in field_names:
-        value = packet.get(field_name)
-        if (
-            isinstance(value, bool)
-            or not isinstance(value, (int, float))
-            or not -1.0 <= value <= 1.0
-        ):
-            raise PacketValidationError(
-                f'{field_name} must be a finite number in [-1, 1]',
-            )
+def validate_packet(packet: JsonObject, direction: str | None = None) -> None:
+    """Validate a packet against the canonical versioned contract."""
+    validator, definitions = _contract()
+    error = best_match(validator.iter_errors(packet))
+    if error is not None:
+        raise PacketValidationError(error.message)
+    packet_type = cast(str, packet['type'])
+    packet_direction = definitions[packet_type].get('x-direction')
+    if direction is not None and packet_direction != direction:
+        raise PacketValidationError(
+            f'{packet_type} is not a {direction} packet',
+        )
 
 
 def _validate_envelope(packet: object) -> JsonObject:
@@ -77,3 +79,42 @@ def _parse_finite_float(value: str) -> float:
             f'JSON number is outside the supported range: {value}',
         )
     return parsed
+
+
+@lru_cache(maxsize=1)
+def _contract() -> tuple[Draft202012Validator, dict[str, JsonObject]]:
+    schema_path = _contract_path()
+    try:
+        schema = json.loads(schema_path.read_text(encoding='utf-8'))
+    except (OSError, json.JSONDecodeError) as error:
+        raise RuntimeError(
+            f'Could not load packet contract: {schema_path}',
+        ) from error
+    Draft202012Validator.check_schema(schema)
+    definitions = {
+        definition['properties']['type']['const']: definition
+        for definition in schema['$defs'].values()
+        if isinstance(definition, dict)
+        and 'properties' in definition
+        and 'type' in definition['properties']
+        and 'const' in definition['properties']['type']
+    }
+    return Draft202012Validator(schema), definitions
+
+
+def _contract_path() -> Path:
+    source_path = Path(__file__).resolve().parents[3] / 'protocol' / (
+        'packet.schema.json'
+    )
+    if source_path.is_file():
+        return source_path
+
+    from ament_index_python.packages import (  # type: ignore[import-not-found]
+        get_package_share_directory,
+    )
+
+    return (
+        Path(get_package_share_directory('mc_bridge'))
+        / 'protocol'
+        / 'packet.schema.json'
+    )

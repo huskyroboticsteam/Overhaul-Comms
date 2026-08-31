@@ -1,0 +1,4 @@
+uint64 active_session_id
+bool emergency_stop_latched
+bool heartbeat_timed_out
+bool command_timed_out
