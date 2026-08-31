@@ -36,6 +36,8 @@ jobs:
             .devcontainer/requirements.txt
             .github/requirements-ci.txt
             src/mc_bridge/setup.py
+            src/rover_safety/setup.py
+            protocol/packet.schema.json
 
       - name: Install dependencies
         run: >-
@@ -43,6 +45,7 @@ jobs:
           --requirement .devcontainer/requirements.txt
           --requirement .github/requirements-ci.txt
           --editable src/mc_bridge
+          --editable src/rover_safety
 
       - name: Check dependency consistency
         run: python -m pip check
@@ -52,34 +55,45 @@ jobs:
           python -m flake8 \
             src/mc_bridge/mc_bridge \
             src/mc_bridge/test \
-            src/mc_bridge/setup.py
+            src/mc_bridge/setup.py \
+            src/rover_safety/rover_safety \
+            src/rover_safety/test \
+            src/rover_safety/setup.py
           python -m pydocstyle \
             src/mc_bridge/mc_bridge \
             src/mc_bridge/test \
-            src/mc_bridge/setup.py
+            src/mc_bridge/setup.py \
+            src/rover_safety/rover_safety \
+            src/rover_safety/test \
+            src/rover_safety/setup.py
 
       - name: Type-check transport-independent code
         run: |
           python -m mypy --strict \
             src/mc_bridge/mc_bridge/packet.py \
+            src/mc_bridge/mc_bridge/command_session.py \
             src/mc_bridge/mc_bridge/session_inbox.py \
-            src/mc_bridge/mc_bridge/websocket_server.py
+            src/mc_bridge/mc_bridge/websocket_server.py \
+            src/rover_safety/rover_safety/safety_gate.py
           python -m mypy \
             --strict \
             --ignore-missing-imports \
             --disable-error-code=misc \
             src/mc_bridge/mc_bridge/bridge_node.py \
-            src/mc_bridge/mc_bridge/main.py
+            src/mc_bridge/mc_bridge/main.py \
+            src/rover_safety/rover_safety/watchdog_node.py
 
       - name: Test transport-independent code
         run: |
           python -m pytest --quiet src/mc_bridge/test \
             --ignore=src/mc_bridge/test/test_flake8.py \
             --ignore=src/mc_bridge/test/test_pep257.py
+          python -m pytest --quiet src/rover_safety/test/test_safety_gate.py
 
       - name: Validate configuration files
         run: |
           python -m json.tool .devcontainer/devcontainer.json >/dev/null
+          python -m json.tool protocol/packet.schema.json >/dev/null
           python -c "from xml.etree import ElementTree; ElementTree.parse('config/cyclone/laptop.xml'); ElementTree.parse('config/cyclone/rover.xml')"
           bash -n .devcontainer/ros_entrypoint.sh
 
@@ -144,10 +158,12 @@ jobs:
 
           import mc_bridge.main
           from mc_bridge.bridge_node import create_node
+          from rover_safety.watchdog_node import RoverWatchdogNode
 
           rclpy.init(signal_handler_options=SignalHandlerOptions.NO)
           try:
               create_node().destroy_node()
+              RoverWatchdogNode().destroy_node()
           finally:
               if rclpy.ok():
                   rclpy.shutdown()
