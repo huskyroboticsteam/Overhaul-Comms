@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import json
 from functools import lru_cache
+import json
 import math
 from pathlib import Path
-from typing import TypeAlias, cast
+from typing import cast, TypeAlias
 
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import best_match

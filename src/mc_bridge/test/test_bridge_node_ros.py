@@ -11,14 +11,16 @@ import pytest
 
 rclpy = pytest.importorskip('rclpy')
 
+from mc_bridge.bridge_node import MCBridgeNode  # noqa: E402, I100
+from mc_bridge.packet import JsonObject  # noqa: E402
 from rover_interfaces.msg import (  # noqa: E402
     ArmIKCommand,
     ArmIKEnabledReport,
     CameraCommand,
     CameraFrameReport,
     CameraStreamReport,
-    DriveCommand,
     CommandSessionStart,
+    DriveCommand,
     EmergencyStopCommand,
     JointPositionCommand,
     JointPositionReport,
@@ -32,9 +34,6 @@ from rover_interfaces.msg import (  # noqa: E402
     TankDriveCommand,
     WaypointNavCommand,
 )
-
-from mc_bridge.bridge_node import MCBridgeNode  # noqa: E402
-from mc_bridge.packet import JsonObject  # noqa: E402
 
 
 class _PublisherRecorder:

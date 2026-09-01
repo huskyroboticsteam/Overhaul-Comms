@@ -2,8 +2,6 @@
 
 import threading
 
-import pytest
-
 import mc_bridge.camera_worker as camera_worker
 from mc_bridge.camera_worker import (
     CameraFrame,
@@ -12,6 +10,7 @@ from mc_bridge.camera_worker import (
     CameraStreamFrame,
 )
 from mc_bridge.packet import JsonObject
+import pytest
 
 
 def _frame(data: bytes = b'jpeg') -> CameraFrame:

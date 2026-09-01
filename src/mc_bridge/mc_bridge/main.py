@@ -7,12 +7,11 @@ import logging
 import signal
 import threading
 
+from mc_bridge.bridge_node import create_node, MCBridgeNode
+from mc_bridge.websocket_server import SingleControllerWebSocketServer
 import rclpy
 from rclpy.executors import SingleThreadedExecutor
 from rclpy.signals import SignalHandlerOptions
-
-from mc_bridge.bridge_node import MCBridgeNode, create_node
-from mc_bridge.websocket_server import SingleControllerWebSocketServer
 
 
 _LOGGER = logging.getLogger(__name__)

@@ -3,14 +3,13 @@
 import json
 from pathlib import Path
 
-import pytest
-
 from mc_bridge.packet import (
-    PacketValidationError,
     decode_packet,
     encode_packet,
+    PacketValidationError,
     validate_packet,
 )
+import pytest
 
 
 @pytest.mark.parametrize(

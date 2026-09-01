@@ -3,25 +3,24 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
 from collections import OrderedDict
+from collections.abc import Callable
 from http import HTTPStatus
 import logging
 import threading
 from types import TracebackType
-from typing import TypeAlias, cast
-
-from websockets.asyncio.server import Server, ServerConnection, serve
-from websockets.exceptions import ConnectionClosed
-from websockets.http11 import Request, Response
+from typing import cast, TypeAlias
 
 from mc_bridge.packet import (
-    JsonObject,
-    PacketValidationError,
     decode_packet,
     encode_packet,
+    JsonObject,
+    PacketValidationError,
     validate_packet,
 )
+from websockets.asyncio.server import serve, Server, ServerConnection
+from websockets.exceptions import ConnectionClosed
+from websockets.http11 import Request, Response
 
 MessageHandler: TypeAlias = Callable[[JsonObject], bool]
 ConnectHandler: TypeAlias = Callable[[], None]

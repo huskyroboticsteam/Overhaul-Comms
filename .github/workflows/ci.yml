@@ -268,8 +268,9 @@ jobs:
       - name: Smoke-test production image
         run: |
           docker run --rm \
+            --platform "${{ matrix.platform }}" \
             overhaul-comms:ci-${{ matrix.arch }} \
-            timeout 15s python3 -c "import os, rclpy; from mc_bridge.bridge_node import create_node; from rover_safety.watchdog_node import RoverWatchdogNode; assert os.environ['RMW_IMPLEMENTATION'] == 'rmw_cyclonedds_cpp'; rclpy.init(); bridge = create_node(); watchdog = RoverWatchdogNode(); bridge.destroy_node(); watchdog.destroy_node(); rclpy.shutdown()"
+            timeout 60s python3 -c "import os, rclpy; from mc_bridge.bridge_node import create_node; from rover_safety.watchdog_node import RoverWatchdogNode; assert os.environ['RMW_IMPLEMENTATION'] == 'rmw_cyclonedds_cpp'; rclpy.init(); bridge = create_node(); watchdog = RoverWatchdogNode(); bridge.destroy_node(); watchdog.destroy_node(); rclpy.shutdown()"
 
   zenoh-integration:
     name: Zenoh integration

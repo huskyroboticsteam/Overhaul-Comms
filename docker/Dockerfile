@@ -18,7 +18,7 @@ RUN apt-get update \
         --from-paths src \
         --ignore-src \
         --rosdistro jazzy \
-        --yes \
+        -y \
     && source /opt/ros/jazzy/setup.bash \
     && colcon build \
         --merge-install \
@@ -47,7 +47,7 @@ RUN --mount=type=bind,source=src,target=/tmp/rover_src,ro \
         --ignore-src \
         --rosdistro jazzy \
         --dependency-types exec \
-        --yes \
+        -y \
     && rm -rf /var/lib/apt/lists/*
 
 COPY .devcontainer/requirements.txt /tmp/requirements.txt

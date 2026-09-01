@@ -5,11 +5,10 @@ from collections.abc import Callable
 from http import HTTPStatus
 import json
 
+from mc_bridge.websocket_server import SingleControllerWebSocketServer
 import pytest
 from websockets.asyncio.client import connect
 from websockets.exceptions import ConnectionClosed, InvalidStatus
-
-from mc_bridge.websocket_server import SingleControllerWebSocketServer
 
 
 def _uri(
