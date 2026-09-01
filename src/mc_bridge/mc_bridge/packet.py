@@ -8,8 +8,8 @@ import math
 from pathlib import Path
 from typing import TypeAlias, cast
 
-from jsonschema import Draft202012Validator  # type: ignore[import-untyped]
-from jsonschema.exceptions import best_match  # type: ignore[import-untyped]
+from jsonschema import Draft202012Validator
+from jsonschema.exceptions import best_match
 
 
 JsonObject: TypeAlias = dict[str, object]
@@ -109,7 +109,7 @@ def _contract_path() -> Path:
     if source_path.is_file():
         return source_path
 
-    from ament_index_python.packages import (  # type: ignore[import-not-found]
+    from ament_index_python.packages import (
         get_package_share_directory,
     )
 

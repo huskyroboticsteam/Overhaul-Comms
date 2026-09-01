@@ -22,7 +22,7 @@ setup(
         ('share/' + package_name + '/protocol', [str(contract)]),
     ],
     install_requires=[
-        'jsonschema==4.23.0',
+        'jsonschema>=4.10,<5',
         'setuptools',
         'websockets==14.2',
     ],

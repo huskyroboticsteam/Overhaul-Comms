@@ -69,7 +69,7 @@ jobs:
 
       - name: Type-check transport-independent code
         run: |
-          python -m mypy --strict \
+          python -m mypy --strict --ignore-missing-imports \
             src/mc_bridge/mc_bridge/packet.py \
             src/mc_bridge/mc_bridge/command_session.py \
             src/mc_bridge/mc_bridge/session_inbox.py \

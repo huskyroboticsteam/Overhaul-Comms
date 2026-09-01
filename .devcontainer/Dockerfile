@@ -11,6 +11,7 @@ ENV ROS_WORKSPACE=/home/${USERNAME}/ros2_ws \
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         python3-pip \
+        python3-jsonschema \
         ros-jazzy-rmw-cyclonedds-cpp \
         sudo \
     && rm -rf /var/lib/apt/lists/*
