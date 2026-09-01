@@ -5,9 +5,8 @@ from setuptools import find_packages, setup
 
 
 package_name = 'mc_bridge'
-contract = Path(__file__).resolve().parents[2] / 'protocol' / (
-    'packet.schema.json'
-)
+# colcon requires every data_files source to remain relative to setup.py.
+contract = Path('..', '..', 'protocol', 'packet.schema.json')
 
 setup(
     name=package_name,
