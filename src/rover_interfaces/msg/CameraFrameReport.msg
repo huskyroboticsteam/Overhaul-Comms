@@ -1,0 +1,11 @@
+uint64 session_id
+uint64 request_sequence
+string<=16 camera
+uint8[<=12582912] jpeg_data
+float64 latitude_deg
+float64 longitude_deg
+float64 altitude_m
+float64 orientation_x
+float64 orientation_y
+float64 orientation_z
+float64 orientation_w

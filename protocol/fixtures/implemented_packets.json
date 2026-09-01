@@ -1,0 +1,57 @@
+{
+  "requests": [
+    {"type": "armIKRequest", "enabled": true},
+    {"type": "cameraFrameRequest", "camera": "mast"},
+    {"type": "cameraStreamCloseRequest", "camera": "mast"},
+    {"type": "cameraStreamOpenRequest", "camera": "mast", "fps": 20},
+    {"type": "driveRequest", "straight": 0.5, "steer": -0.25},
+    {"type": "emergencyStopRequest", "stop": true},
+    {"type": "jointPositionRequest", "joint": "elbow", "position": 45.0},
+    {"type": "jointPowerRequest", "joint": "elbow", "power": 0.5},
+    {"type": "operationModeRequest", "mode": "autonomous"},
+    {"type": "servoPositionRequest", "servo": "mast", "position": 90.0},
+    {"type": "stepperTurnAngleRequest", "stepper": "mast", "angle": -45},
+    {"type": "tankDriveRequest", "left": -0.25, "right": 0.25},
+    {
+      "type": "waypointNavRequest",
+      "latitude": 47.655,
+      "longitude": -122.307,
+      "isApproximate": false,
+      "isGate": true
+    }
+  ],
+  "reports": [
+    {"type": "armIKEnabledReport", "enabled": true},
+    {
+      "type": "cameraFrameReport",
+      "camera": "mast",
+      "data": "/9j/2Q==",
+      "lat": 47.655,
+      "lon": -122.307,
+      "alt": 30.0,
+      "orientX": 0.0,
+      "orientY": 0.0,
+      "orientZ": 0.0,
+      "orientW": 1.0
+    },
+    {
+      "type": "cameraStreamReport",
+      "camera": "mast",
+      "data": [[0, 0, 0, 1, 101, 136]]
+    },
+    {"type": "jointPositionReport", "joint": "elbow", "position": 45.0},
+    {"type": "mountedPeripheralReport", "peripheral": null},
+    {
+      "type": "roverPositionReport",
+      "orientW": 1.0,
+      "orientX": 0.0,
+      "orientY": 0.0,
+      "orientZ": 0.0,
+      "lon": -122.307,
+      "lat": 47.655,
+      "alt": 30.0,
+      "recency": 0.05
+    },
+    {"type": "servoPositionReport", "servo": "mast", "position": 90.0}
+  ]
+}

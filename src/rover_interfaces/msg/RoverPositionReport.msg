@@ -1,0 +1,8 @@
+float64 orientation_w
+float64 orientation_x
+float64 orientation_y
+float64 orientation_z
+float64 longitude_deg
+float64 latitude_deg
+float64 altitude_m
+float64 recency_sec

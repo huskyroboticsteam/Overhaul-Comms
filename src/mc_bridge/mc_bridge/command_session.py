@@ -39,6 +39,12 @@ class CommandSession:
             self._sequence = 0
             return session_id
 
+    @property
+    def active_session_id(self) -> int:
+        """Return the active session identifier, or zero when disconnected."""
+        with self._lock:
+            return self._session_id
+
     def next_stamp(self) -> CommandStamp | None:
         """Return the next stamp, or None when no controller is active."""
         with self._lock:

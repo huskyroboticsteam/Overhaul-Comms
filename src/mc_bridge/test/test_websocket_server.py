@@ -152,6 +152,56 @@ def test_outbound_packet_is_published_from_another_thread() -> None:
     asyncio.run(scenario())
 
 
+def test_connect_handler_can_publish_retained_state() -> None:
+    """The connection mailbox exists before static state is replayed."""
+    async def scenario() -> None:
+        server: SingleControllerWebSocketServer
+
+        def connected() -> None:
+            assert server.publish_from_thread(
+                {'type': 'mountedPeripheralReport', 'peripheral': 'arm'},
+            )
+
+        server = SingleControllerWebSocketServer(
+            lambda _: True,
+            port=0,
+            connect_handler=connected,
+        )
+        async with server:
+            async with connect(_uri(server)) as websocket:
+                raw_message = await asyncio.wait_for(websocket.recv(), 1.0)
+                assert json.loads(raw_message) == {
+                    'type': 'mountedPeripheralReport',
+                    'peripheral': 'arm',
+                }
+
+    asyncio.run(scenario())
+
+
+def test_failed_connect_handler_runs_session_cleanup() -> None:
+    """Partial controller setup cannot leave a command session active."""
+    events: list[str] = []
+
+    def fail_setup() -> None:
+        events.append('connect')
+        raise RuntimeError('setup failed')
+
+    async def scenario() -> None:
+        server = SingleControllerWebSocketServer(
+            lambda _: True,
+            port=0,
+            connect_handler=fail_setup,
+            disconnect_handler=lambda: events.append('disconnect'),
+        )
+        async with server:
+            websocket = await connect(_uri(server))
+            await websocket.wait_closed()
+            assert websocket.close_code == 1011
+
+    asyncio.run(scenario())
+    assert events == ['connect', 'disconnect']
+
+
 def test_disconnect_handler_runs_before_accepting_a_replacement() -> None:
     """A closed session can clear its pending ROS input before reconnect."""
     lifecycle: list[str] = []

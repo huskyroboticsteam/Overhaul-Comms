@@ -1,0 +1,50 @@
+{
+  "mode": "client",
+  "connect": {
+    "endpoints": ["tcp/rover_zenoh:7447"],
+    "timeout_ms": -1,
+    "exit_on_failure": false,
+    "retry": {
+      "period_init_ms": 1000,
+      "period_max_ms": 4000,
+      "period_increase_factor": 2
+    }
+  },
+  "scouting": {
+    "multicast": {"enabled": false},
+    "gossip": {"enabled": false}
+  },
+  "transport": {
+    "shared_memory": {"enabled": false}
+  },
+  "plugins": {
+    "ros2dds": {
+      "nodename": "laptop_zenoh_bridge",
+      "domain": 0,
+      "ros_automatic_discovery_range": "LOCALHOST",
+      "allow": {
+        "publishers": [
+          "/comms/(drive|tank_drive|emergency_stop|heartbeat|session_start)",
+          "/comms/(operation_mode|joint_power|joint_position)",
+          "/comms/(arm_ik|servo_position|stepper_turn_angle)",
+          "/comms/(waypoint_nav|camera)"
+        ],
+        "subscribers": [
+          "/telemetry/(rover_position|joint_position|servo_position)",
+          "/telemetry/(peripheral|arm_ik)",
+          "/camera/(frame|stream)",
+          "/safety/state"
+        ],
+        "service_servers": [],
+        "service_clients": [],
+        "action_servers": [],
+        "action_clients": []
+      },
+      "pub_priorities": [
+        "/comms/(session_start|heartbeat|emergency_stop)=1:express",
+        "/comms/(drive|tank_drive)=2:express"
+      ],
+      "reliable_routes_blocking": true
+    }
+  }
+}

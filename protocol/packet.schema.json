@@ -37,14 +37,22 @@
       ],
       "description": "The final three names are legacy Resurgence science joints."
     },
+    "missionControlJoint": {
+      "enum": [
+        "armBase", "shoulder", "elbow", "forearm", "wristPitch",
+        "wristRoll", "hand", "handActuator", "ikUp", "ikForward"
+      ]
+    },
     "servo": {
       "enum": ["mast", "microscope", "syringe", "cuvette", "filter", "soilBox"],
       "description": "Mission Control currently exposes mast; Resurgence exposes the science servos."
     },
+    "missionControlServo": {"const": "mast"},
     "stepper": {"enum": ["plunger", "judges", "mast", "lock", "lazySusan"]},
     "armIKRequest": {
       "x-status": "legacy-compatible",
       "x-direction": "request",
+      "x-bridge-support": "active",
       "type": "object",
       "additionalProperties": false,
       "required": ["type", "enabled"],
@@ -56,6 +64,7 @@
     "cameraFrameRequest": {
       "x-status": "active",
       "x-direction": "request",
+      "x-bridge-support": "active",
       "type": "object",
       "additionalProperties": false,
       "required": ["type", "camera"],
@@ -67,6 +76,7 @@
     "cameraStreamCloseRequest": {
       "x-status": "active",
       "x-direction": "request",
+      "x-bridge-support": "active",
       "type": "object",
       "additionalProperties": false,
       "required": ["type", "camera"],
@@ -78,13 +88,14 @@
     "cameraStreamOpenRequest": {
       "x-status": "active",
       "x-direction": "request",
+      "x-bridge-support": "active",
       "type": "object",
       "additionalProperties": false,
       "required": ["type", "camera", "fps"],
       "properties": {
         "type": {"const": "cameraStreamOpenRequest"},
         "camera": {"$ref": "#/$defs/camera"},
-        "fps": {"type": "integer", "minimum": 1}
+        "fps": {"type": "integer", "minimum": 1, "maximum": 60}
       }
     },
     "driveRequest": {
@@ -113,9 +124,10 @@
       }
     },
     "jointPositionRequest": {
-      "x-status": "planned",
+      "x-status": "active",
       "x-direction": "request",
-      "description": "Resurgence accepts integer positions but does not execute them; Mission Control types any number.",
+      "x-bridge-support": "active",
+      "description": "Physical joint positions use degrees; ikUp and ikForward use meters. The new bridge routes the command; Resurgence accepted integers but did not execute them.",
       "type": "object",
       "additionalProperties": false,
       "required": ["type", "joint", "position"],
@@ -128,6 +140,7 @@
     "jointPowerRequest": {
       "x-status": "active",
       "x-direction": "request",
+      "x-bridge-support": "active",
       "type": "object",
       "additionalProperties": false,
       "required": ["type", "joint", "power"],
@@ -140,6 +153,7 @@
     "operationModeRequest": {
       "x-status": "active",
       "x-direction": "request",
+      "x-bridge-support": "active",
       "type": "object",
       "additionalProperties": false,
       "required": ["type", "mode"],
@@ -149,8 +163,9 @@
       }
     },
     "servoPositionRequest": {
-      "x-status": "planned",
+      "x-status": "legacy-compatible",
       "x-direction": "request",
+      "x-bridge-support": "active",
       "description": "The field shape agrees, but Mission Control and Resurgence expose disjoint servo names.",
       "type": "object",
       "additionalProperties": false,
@@ -164,6 +179,7 @@
     "stepperTurnAngleRequest": {
       "x-status": "legacy-compatible",
       "x-direction": "request",
+      "x-bridge-support": "active",
       "type": "object",
       "additionalProperties": false,
       "required": ["type", "stepper", "angle"],
@@ -189,6 +205,7 @@
     "waypointNavRequest": {
       "x-status": "active",
       "x-direction": "request",
+      "x-bridge-support": "active",
       "type": "object",
       "additionalProperties": false,
       "required": ["type", "latitude", "longitude", "isApproximate", "isGate"],
@@ -203,6 +220,7 @@
     "armIKEnabledReport": {
       "x-status": "legacy-compatible",
       "x-direction": "report",
+      "x-bridge-support": "active",
       "type": "object",
       "additionalProperties": false,
       "required": ["type", "enabled"],
@@ -214,13 +232,18 @@
     "cameraFrameReport": {
       "x-status": "active",
       "x-direction": "report",
+      "x-bridge-support": "active",
       "type": "object",
       "additionalProperties": false,
       "required": ["type", "camera", "data", "lat", "lon", "alt", "orientX", "orientY", "orientZ", "orientW"],
       "properties": {
         "type": {"const": "cameraFrameReport"},
         "camera": {"$ref": "#/$defs/camera"},
-        "data": {"type": "string", "contentEncoding": "base64"},
+        "data": {
+          "type": "string",
+          "contentEncoding": "base64",
+          "x-max-decoded-bytes": 12582912
+        },
         "lat": {"$ref": "#/$defs/finiteNumber"},
         "lon": {"$ref": "#/$defs/finiteNumber"},
         "alt": {"$ref": "#/$defs/finiteNumber"},
@@ -231,9 +254,10 @@
       }
     },
     "cameraStreamReport": {
-      "x-status": "planned",
+      "x-status": "active",
       "x-direction": "report",
-      "description": "Mission Control declares number[][] or null; the byte framing and encoding still need capture fixtures.",
+      "x-bridge-support": "active",
+      "description": "One H.264 frame as Annex-B NAL byte arrays, or null when unavailable.",
       "type": "object",
       "additionalProperties": false,
       "required": ["type", "camera", "data"],
@@ -245,6 +269,8 @@
             {"type": "null"},
             {
               "type": "array",
+              "maxItems": 4096,
+              "x-max-total-bytes": 4194304,
               "items": {
                 "type": "array",
                 "items": {"type": "integer", "minimum": 0, "maximum": 255}
@@ -257,18 +283,21 @@
     "jointPositionReport": {
       "x-status": "active",
       "x-direction": "report",
+      "x-bridge-support": "active",
+      "description": "Physical joint positions use degrees; ikUp and ikForward use meters.",
       "type": "object",
       "additionalProperties": false,
       "required": ["type", "joint", "position"],
       "properties": {
         "type": {"const": "jointPositionReport"},
-        "joint": {"$ref": "#/$defs/joint"},
+        "joint": {"$ref": "#/$defs/missionControlJoint"},
         "position": {"$ref": "#/$defs/finiteNumber"}
       }
     },
     "mountedPeripheralReport": {
       "x-status": "active",
       "x-direction": "report",
+      "x-bridge-support": "active",
       "type": "object",
       "additionalProperties": false,
       "required": ["type", "peripheral"],
@@ -280,6 +309,7 @@
     "roverPositionReport": {
       "x-status": "active",
       "x-direction": "report",
+      "x-bridge-support": "active",
       "type": "object",
       "additionalProperties": false,
       "required": ["type", "orientW", "orientX", "orientY", "orientZ", "lon", "lat", "alt", "recency"],
@@ -296,14 +326,15 @@
       }
     },
     "servoPositionReport": {
-      "x-status": "planned",
+      "x-status": "legacy-compatible",
       "x-direction": "report",
+      "x-bridge-support": "active",
       "type": "object",
       "additionalProperties": false,
       "required": ["type", "servo", "position"],
       "properties": {
         "type": {"const": "servoPositionReport"},
-        "servo": {"$ref": "#/$defs/servo"},
+        "servo": {"$ref": "#/$defs/missionControlServo"},
         "position": {"$ref": "#/$defs/finiteNumber"}
       }
     }

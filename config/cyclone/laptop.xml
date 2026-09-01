@@ -6,6 +6,7 @@
         <NetworkInterface name="lo" multicast="true" />
       </Interfaces>
       <AllowMulticast>true</AllowMulticast>
+      <DontRoute>true</DontRoute>
     </General>
     <Discovery>
       <ParticipantIndex>auto</ParticipantIndex>

@@ -86,6 +86,46 @@ def test_vertical_slice_fixtures_match_contract() -> None:
         validate_packet(packet, direction='request')
 
 
+def test_implemented_packet_fixtures_match_contract() -> None:
+    """Every routed request and report remains compatible with v1."""
+    fixture_path = (
+        Path(__file__).resolve().parents[3]
+        / 'protocol'
+        / 'fixtures'
+        / 'implemented_packets.json'
+    )
+    fixtures = json.loads(fixture_path.read_text(encoding='utf-8'))
+    for direction in ('request', 'report'):
+        for packet in fixtures[f'{direction}s']:
+            validate_packet(packet, direction=direction)
+
+
+def test_fixtures_cover_every_supported_packet_type() -> None:
+    """The executable fixture set cannot drift behind the v1 contract."""
+    root = Path(__file__).resolve().parents[3]
+    schema = json.loads(
+        (root / 'protocol' / 'packet.schema.json').read_text(
+            encoding='utf-8',
+        ),
+    )
+    fixtures = json.loads(
+        (root / 'protocol' / 'fixtures' / 'implemented_packets.json')
+        .read_text(encoding='utf-8'),
+    )
+    for direction in ('request', 'report'):
+        supported = {
+            definition['properties']['type']['const']
+            for definition in schema['$defs'].values()
+            if definition.get('x-direction') == direction
+            and definition.get('x-bridge-support') == 'active'
+        }
+        represented = {
+            packet['type']
+            for packet in fixtures[f'{direction}s']
+        }
+        assert represented == supported
+
+
 def test_every_packet_definition_has_compatibility_metadata() -> None:
     """Every packet in the union declares its direction and status."""
     schema_path = (
@@ -107,5 +147,9 @@ def test_every_packet_definition_has_compatibility_metadata() -> None:
     assert all(
         definition['x-status']
         in {'active', 'legacy-compatible', 'planned', 'unsupported'}
+        for definition in packet_definitions
+    )
+    assert all(
+        definition['x-bridge-support'] == 'active'
         for definition in packet_definitions
     )

@@ -5,22 +5,63 @@ between Mission Control and rover nodes. Mission Control remains unchanged and
 connects to `ws://localhost:3001/mission-control`.
 
 ```text
-Mission Control -> WebSocket -> mc_bridge -> typed ROS topics
-    -> Zenoh ROS2DDS transport (next step) -> rover_safety -> safe wheel targets
+Mission Control
+  <-> ws://localhost:3001/mission-control
+mc_bridge (laptop)
+  <-> laptop-local Cyclone DDS
+zenoh-bridge-ros2dds (laptop, client)
+  <-> Zenoh TCP
+zenoh-bridge-ros2dds (rover, router)
+  <-> rover-local Cyclone DDS
+rover_safety and rover ROS nodes
 ```
 
 ## Packages
 
-- `mc_bridge`: validates the versioned packet contract and translates drive,
-  tank-drive, and emergency-stop requests to typed ROS messages.
-- `rover_interfaces`: shared command and safety message definitions.
+- `mc_bridge`: validates and translates every v1 request and report using typed
+  ROS interfaces.
+- `rover_interfaces`: shared command, telemetry, camera, and safety messages.
 - `rover_safety`: rover-local heartbeat watchdog and latched emergency-stop
-  gate. This node is independent of Mission Control, the laptop, and Zenoh.
+  gate for wheel and continuous joint-power outputs.
 
 The canonical WebSocket contract is
 [`protocol/packet.schema.json`](protocol/packet.schema.json). Its companion
 [`protocol/README.md`](protocol/README.md) records compatibility status and
 known drift from Mission Control and Resurgence.
+
+## Compose deployment
+
+Start the rover first:
+
+```bash
+docker compose --profile rover up --detach --build
+```
+
+On the Mission Control laptop, point Zenoh at the rover radio address:
+
+```bash
+ROVER_ZENOH_ENDPOINT=tcp/192.168.1.10:7447 \
+  docker compose --profile laptop up --detach --build
+```
+
+The `laptop` and `rover` profiles may run on different amd64 or arm64 systems.
+Both use `zenoh-bridge-ros2dds:1.10.0`, disable discovery across the radio, and
+allow only the named command and report topics in `config/zenoh/`.
+
+For a complete single-host qualification run:
+
+```bash
+docker compose --profile integration up --build \
+  --abort-on-container-exit \
+  --exit-code-from integration_test \
+  integration_test
+docker compose --profile integration down --volumes
+```
+
+Cyclone DDS is intentionally restricted to each container network namespace.
+Additional rover nodes must share `rover_zenoh`'s network namespace, as
+`rover_safety` does in `compose.yaml`. Host-native ROS nodes require a separate
+host-network deployment rather than these loopback-only container settings.
 
 ## Development
 
@@ -42,34 +83,52 @@ ros2 run mc_bridge mc_bridge
 ros2 run rover_safety rover_watchdog
 ```
 
-The bridge publishes a connection-scoped heartbeat while its WebSocket client
-is healthy. Every command carries the same random session ID plus a monotonic
-sequence. It refreshes the active motion and e-stop state only within that
-session, clears them on disconnect, and publishes neutral drive immediately.
-The rover gate also stops locally after 300 ms without a refreshed motion
-command or 500 ms without a heartbeat, rejects stale or reordered motion,
-latches every emergency stop, and never resumes old motion after a reconnect or
-e-stop clear.
+The bridge validates input, accepts one controller, and gives commands a random
+session ID plus monotonic sequence. Drive and joint-power controls are bounded
+latest values, refreshed only while connected, and neutralized on disconnect,
+mode change, or e-stop. The rover watchdog independently rejects stale sessions
+and stops after a command or heartbeat timeout. A heartbeat timeout retires the
+session, so Mission Control must reconnect before the rover accepts commands.
+The session-start lease is volatile, which enforces the same reconnect after a
+rover watchdog restart instead of replaying the laptop's old intent. Compose
+also persists the rover-local emergency-stop latch until an explicit healthy
+clear is accepted.
 
-The safe normalized output is `drive/safe_wheels`. Arcade drive matches the
-legacy steering convention: `left = straight + steer` and
-`right = straight - steer`, clamped to `[-1, 1]`. A hardware-specific drive
-node should be the only consumer that converts this output into motor units.
+Safe outputs are `drive/safe_wheels`, `arm/safe_joint_power`,
+`camera/safe_capture`, and `camera/safe_stream`. Hardware nodes should consume
+only these gated outputs. Camera captures are volatile events; stream state is
+retained as one atomic snapshot containing every camera. The camera lease
+publishes stream closes after heartbeat loss, e-stop, disconnect, or watchdog
+restart. One-shot camera commands and e-stop clears are held briefly if Zenoh
+delivers them ahead of their matching heartbeat; stop assertions remain
+immediate.
+Arcade drive preserves the legacy convention:
+`left = straight + steer` and `right = straight - steer`, clamped to
+`[-1, 1]`.
 
-WebSocket host, port, path, queue capacities, topics, and QoS depth are ROS
-parameters. The server binds to loopback by default and accepts one controller.
+Rover consumers for position, IK, servo, stepper, and waypoint commands must
+also treat `safety/state` as a lease and cancel their hardware-specific action
+when it becomes unsafe or stops refreshing. A safe lease has a nonzero matching
+session and neither `heartbeat_timed_out` nor `emergency_stop_latched` set;
+`command_timed_out` applies to wheel motion. Those actuator/navigation
+consumers are outside this communications workspace, where a generic neutral
+target would be ambiguous.
 
-The container selects Cyclone DDS and restricts discovery to loopback using
-`config/cyclone/laptop.xml`. Zenoh configuration and Compose orchestration are
-deliberately the next end-to-end step, after this local vertical slice.
+Camera conversion runs in a bounded latest-frame worker. JPEG frames become
+base64 packets; H.264 frames preserve their Annex-B NAL boundaries. Responses
+carry internal session/request identity so late frames are discarded after a
+close, replacement request, or reconnect.
+
+WebSocket settings, queue limits, topic names, rates, payload limits, and QoS
+depths are ROS parameters. The application packages contain no Zenoh APIs.
 
 ## Continuous integration
 
-GitHub Actions runs on pull requests, merge queues, and pushes to `main`. It
-checks Python linting, types, tests, and configuration files; builds and tests
-the workspace on ROS 2 Jazzy; and builds and smoke-tests the development
-container. These three jobs are intended to be required branch-protection
-checks.
+GitHub Actions checks linting, strict types, packet fixtures, ROS Jazzy builds,
+the development container, amd64/arm64 production images, and the production
+Compose path. The integration job creates two isolated DDS graphs and verifies
+drive, tank drive, disconnect/reconnect, e-stop latch/clear, return telemetry,
+and topic-allowlist isolation through Zenoh, plus the rover-local camera lease.
 
 ## Platform check
 

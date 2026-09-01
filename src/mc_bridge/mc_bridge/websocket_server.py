@@ -242,17 +242,30 @@ class SingleControllerWebSocketServer:
             )
             return
 
-        try:
-            self._connect_handler()
-        except Exception:
-            self._logger.exception('WebSocket connect handler failed')
-            await websocket.close(code=1011, reason='Controller setup failed')
-            return
-
         mailbox = _LatestValueMailbox(self._outbound_capacity)
         self._controller = websocket
         with self._thread_state_lock:
             self._mailbox = mailbox
+
+        try:
+            self._connect_handler()
+        except Exception:
+            self._logger.exception('WebSocket connect handler failed')
+            try:
+                self._disconnect_handler()
+            except Exception:
+                self._logger.exception(
+                    'WebSocket setup cleanup failed',
+                )
+            mailbox.close()
+            with self._thread_state_lock:
+                if self._mailbox is mailbox:
+                    self._mailbox = None
+                self._dropped_outbound_messages += mailbox.dropped
+            if self._controller is websocket:
+                self._controller = None
+            await websocket.close(code=1011, reason='Controller setup failed')
+            return
 
         self._logger.info('Mission Control connected')
         receiver = asyncio.create_task(

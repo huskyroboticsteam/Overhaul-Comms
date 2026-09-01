@@ -7,17 +7,26 @@ README plus the packet handlers implemented in Resurgence.
 Packet statuses mean:
 
 - `active`: the current repositories agree on the packet shape.
-- `legacy-compatible`: Resurgence implements the packet, but current Mission
-  Control does not expose it.
+- `legacy-compatible`: the bridge preserves a legacy packet that current
+  Mission Control omits or exposes under a disjoint set of device names.
 - `planned`: a known schema or behavior mismatch must be resolved before the
   packet is implemented in the new bridge.
 - `unsupported`: intentionally outside this protocol version. No v1 packets
   currently have this status.
 
-Only drive, tank drive, and emergency stop are routed by `mc_bridge` in the
-first vertical slice; `x-bridge-support` marks those definitions. Other valid
-packets are recognized but not yet published to ROS.
+`x-bridge-support` marks every request and report routed by `mc_bridge`.
+Commands use typed ROS messages, and reports use typed subscriptions rather
+than JSON inside `std_msgs/String`.
 
-Known follow-ups are joint-position units and behavior, the disjoint servo
-names, and the camera-stream byte framing. New captured fixtures should be
-added under `fixtures/` before changing those definitions.
+Physical joint positions and servo positions use degrees. Typed ROS joint
+position messages carry an explicit unit; legacy `ikForward` and `ikUp`
+positions use meters. Camera stream data is one H.264 frame represented as
+Annex-B NAL byte arrays; camera frame data is a base64 JPEG with its GPS and
+orientation fields. The ROS boundary caps decoded JPEGs at 12 MiB, stream
+frames at 4 MiB, and stream frames at 4096 NAL units.
+
+Mission Control currently exposes only its ten arm joint names and the `mast`
+servo. The bridge accepts the legacy science names but filters their reports so
+the unchanged client cannot index missing UI state. Its current mast-servo UI
+also has an upstream `range`/`limits` mismatch; bridge support is nevertheless
+covered by protocol fixtures.

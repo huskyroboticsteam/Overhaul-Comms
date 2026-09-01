@@ -1,0 +1,13 @@
+.git
+.github
+.mypy_cache
+.pytest_cache
+.ruff_cache
+.vscode
+build
+install
+log
+**/__pycache__
+**/*.egg-info
+*.pyc
+.DS_Store

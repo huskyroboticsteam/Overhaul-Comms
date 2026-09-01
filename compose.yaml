@@ -1,0 +1,161 @@
+name: overhaul-comms
+
+x-zenoh-service: &zenoh-service
+  image: eclipse/zenoh-bridge-ros2dds:1.10.0
+  init: true
+  restart: unless-stopped
+  stop_grace_period: 5s
+  environment:
+    ROS_AUTOMATIC_DISCOVERY_RANGE: LOCALHOST
+    ROS_DISTRO: jazzy
+    RUST_LOG: ${ZENOH_LOG_LEVEL:-info}
+
+x-ros-service: &ros-service
+  image: overhaul-comms:local
+  build:
+    context: .
+    dockerfile: docker/Dockerfile
+  init: true
+  restart: unless-stopped
+  stop_grace_period: 5s
+  environment:
+    RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+    ROS_AUTOMATIC_DISCOVERY_RANGE: LOCALHOST
+    ROS_DOMAIN_ID: 0
+
+services:
+  laptop_zenoh:
+    <<: *zenoh-service
+    profiles: [laptop, integration]
+    command:
+      - -c
+      - /etc/zenoh/laptop.json5
+      - -e
+      - ${ROVER_ZENOH_ENDPOINT:-tcp/rover_zenoh:7447}
+    environment:
+      CYCLONEDDS_URI: file:///etc/cyclonedds.xml
+      ROS_AUTOMATIC_DISCOVERY_RANGE: LOCALHOST
+      ROS_DISTRO: jazzy
+      RUST_LOG: ${ZENOH_LOG_LEVEL:-info}
+    ports:
+      - 127.0.0.1:${MISSION_CONTROL_PORT:-3001}:3001
+    volumes:
+      - ./config/cyclone/laptop.xml:/etc/cyclonedds.xml:ro
+      - ./config/zenoh/laptop.json5:/etc/zenoh/laptop.json5:ro
+    networks: [zenoh_link]
+
+  mc_bridge:
+    <<: *ros-service
+    profiles: [laptop, integration]
+    network_mode: service:laptop_zenoh
+    depends_on:
+      laptop_zenoh:
+        condition: service_started
+    command:
+      - ros2
+      - run
+      - mc_bridge
+      - mc_bridge
+      - --ros-args
+      - -p
+      - websocket.host:=0.0.0.0
+    environment:
+      CYCLONEDDS_URI: file:///etc/cyclonedds.xml
+      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+      ROS_AUTOMATIC_DISCOVERY_RANGE: LOCALHOST
+      ROS_DOMAIN_ID: 0
+    volumes:
+      - ./config/cyclone/laptop.xml:/etc/cyclonedds.xml:ro
+
+  rover_zenoh:
+    <<: *zenoh-service
+    profiles: [rover, integration]
+    command: [-c, /etc/zenoh/rover.json5]
+    environment:
+      CYCLONEDDS_URI: file:///etc/cyclonedds.xml
+      ROS_AUTOMATIC_DISCOVERY_RANGE: LOCALHOST
+      ROS_DISTRO: jazzy
+      RUST_LOG: ${ZENOH_LOG_LEVEL:-info}
+    ports:
+      - ${ZENOH_LISTEN_ADDRESS:-0.0.0.0}:${ZENOH_LISTEN_PORT:-7447}:7447
+    volumes:
+      - ./config/cyclone/rover.xml:/etc/cyclonedds.xml:ro
+      - ./config/zenoh/rover.json5:/etc/zenoh/rover.json5:ro
+    networks: [zenoh_link]
+
+  rover_safety:
+    <<: *ros-service
+    profiles: [rover, integration]
+    network_mode: service:rover_zenoh
+    depends_on:
+      rover_zenoh:
+        condition: service_started
+    command:
+      - ros2
+      - run
+      - rover_safety
+      - rover_watchdog
+      - --ros-args
+      - -p
+      - estop_latch_path:=/var/lib/rover_safety/emergency_stop_latched
+    environment:
+      CYCLONEDDS_URI: file:///etc/cyclonedds.xml
+      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+      ROS_AUTOMATIC_DISCOVERY_RANGE: LOCALHOST
+      ROS_DOMAIN_ID: 0
+    volumes:
+      - ./config/cyclone/rover.xml:/etc/cyclonedds.xml:ro
+      - rover_safety_state:/var/lib/rover_safety
+
+  integration_laptop_probe:
+    <<: *ros-service
+    profiles: [integration]
+    restart: "no"
+    network_mode: service:laptop_zenoh
+    depends_on:
+      laptop_zenoh:
+        condition: service_started
+    command:
+      - python3
+      - /opt/rover_ws/scripts/zenoh_integration_test.py
+      - forbidden-publisher
+    environment:
+      CYCLONEDDS_URI: file:///etc/cyclonedds.xml
+      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+      ROS_AUTOMATIC_DISCOVERY_RANGE: LOCALHOST
+      ROS_DOMAIN_ID: 0
+    volumes:
+      - ./config/cyclone/laptop.xml:/etc/cyclonedds.xml:ro
+
+  integration_test:
+    <<: *ros-service
+    profiles: [integration]
+    restart: "no"
+    network_mode: service:rover_zenoh
+    depends_on:
+      integration_laptop_probe:
+        condition: service_started
+      mc_bridge:
+        condition: service_started
+      rover_safety:
+        condition: service_started
+    command:
+      - python3
+      - /opt/rover_ws/scripts/zenoh_integration_test.py
+      - verify
+    environment:
+      CYCLONEDDS_URI: file:///etc/cyclonedds.xml
+      FORBIDDEN_PUBLISHER_HOST: laptop_zenoh
+      MISSION_CONTROL_URI: ws://laptop_zenoh:3001/mission-control
+      RMW_IMPLEMENTATION: rmw_cyclonedds_cpp
+      ROS_AUTOMATIC_DISCOVERY_RANGE: LOCALHOST
+      ROS_DOMAIN_ID: 0
+    volumes:
+      - ./config/cyclone/rover.xml:/etc/cyclonedds.xml:ro
+
+networks:
+  zenoh_link:
+    driver: bridge
+
+volumes:
+  rover_safety_state:

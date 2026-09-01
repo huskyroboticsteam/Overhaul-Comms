@@ -16,3 +16,17 @@ updates:
       python-ci:
         patterns:
           - '*'
+  - package-ecosystem: pip
+    directory: /.devcontainer
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker
+    directories:
+      - /docker
+      - /.devcontainer
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly

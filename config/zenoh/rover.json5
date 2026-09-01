@@ -1,0 +1,45 @@
+{
+  "mode": "router",
+  "listen": {
+    "endpoints": ["tcp/0.0.0.0:7447"],
+    "exit_on_failure": true
+  },
+  "scouting": {
+    "multicast": {"enabled": false},
+    "gossip": {"enabled": false}
+  },
+  "transport": {
+    "shared_memory": {"enabled": false}
+  },
+  "plugins": {
+    "ros2dds": {
+      "nodename": "rover_zenoh_bridge",
+      "domain": 0,
+      "ros_automatic_discovery_range": "LOCALHOST",
+      "allow": {
+        "publishers": [
+          "/telemetry/(rover_position|joint_position|servo_position)",
+          "/telemetry/(peripheral|arm_ik)",
+          "/camera/(frame|stream)",
+          "/safety/state"
+        ],
+        "subscribers": [
+          "/comms/(drive|tank_drive|emergency_stop|heartbeat|session_start)",
+          "/comms/(operation_mode|joint_power|joint_position)",
+          "/comms/(arm_ik|servo_position|stepper_turn_angle)",
+          "/comms/(waypoint_nav|camera)"
+        ],
+        "service_servers": [],
+        "service_clients": [],
+        "action_servers": [],
+        "action_clients": []
+      },
+      "pub_priorities": [
+        "/safety/state=1:express",
+        "/telemetry/.*=4",
+        "/camera/.*=7"
+      ],
+      "reliable_routes_blocking": true
+    }
+  }
+}
