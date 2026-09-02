@@ -1,7 +1,7 @@
 # Host-side CI tools and deterministic analysis dependencies.
 flake8==7.3.0
 flake8-import-order==0.19.2
-jsonschema==4.23.0
+jsonschema==4.26.0
 mypy==2.3.1
 pydocstyle==6.3.0
 pytest==9.1.1
