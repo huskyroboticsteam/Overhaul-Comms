@@ -11,7 +11,7 @@ x-zenoh-service: &zenoh-service
     RUST_LOG: ${ZENOH_LOG_LEVEL:-info}
 
 x-ros-service: &ros-service
-  image: overhaul-comms:local
+  image: ${OVERHAUL_COMMS_IMAGE:-overhaul-comms:local}
   build:
     context: .
     dockerfile: docker/Dockerfile

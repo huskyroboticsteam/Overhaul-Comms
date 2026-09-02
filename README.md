@@ -44,6 +44,27 @@ ROVER_ZENOH_ENDPOINT=tcp/192.168.1.10:7447 \
   docker compose --profile laptop up --detach --build
 ```
 
+Successful `main` and manually dispatched CI runs publish the tested
+multi-platform image to GitHub Container Registry. To deploy it without a
+local build:
+
+```bash
+export OVERHAUL_COMMS_IMAGE=ghcr.io/huskyroboticsteam/overhaul-comms:main
+docker compose --profile rover pull
+docker compose --profile rover up --detach --no-build
+```
+
+Private packages require `docker login ghcr.io` first. Each CI run also offers
+seven-day, directly downloadable files named
+`overhaul-comms-amd64-<commit>.tar` and
+`overhaul-comms-arm64-<commit>.tar`. Loading the appropriate file installs the
+default `overhaul-comms:local` image used by Compose:
+
+```bash
+docker load --input overhaul-comms-arm64-<commit>.tar
+docker compose --profile rover up --detach --no-build
+```
+
 The `laptop` and `rover` profiles may run on different amd64 or arm64 systems.
 Both use `zenoh-bridge-ros2dds:1.10.0`, disable discovery across the radio, and
 allow only the named command and report topics in `config/zenoh/`.
@@ -129,6 +150,9 @@ the development container, amd64/arm64 production images, and the production
 Compose path. The integration job creates two isolated DDS graphs and verifies
 drive, tank drive, disconnect/reconnect, e-stop latch/clear, return telemetry,
 and topic-allowlist isolation through Zenoh, plus the rover-local camera lease.
+Production images are retained as named tar artifacts and published to GHCR
+only after every required job passes. Docker's diagnostic `.dockerbuild`
+uploads are disabled.
 
 ## Platform check
 

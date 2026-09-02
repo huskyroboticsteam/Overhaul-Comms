@@ -28,6 +28,8 @@ RUN apt-get update \
 FROM ros:jazzy-ros-base
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+LABEL org.opencontainers.image.source="https://github.com/huskyroboticsteam/Overhaul-Comms" \
+      org.opencontainers.image.licenses="Apache-2.0"
 ENV DEBIAN_FRONTEND=noninteractive \
     RMW_IMPLEMENTATION=rmw_cyclonedds_cpp \
     ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST \
