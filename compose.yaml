@@ -1,7 +1,7 @@
 name: overhaul-comms
 
 x-zenoh-service: &zenoh-service
-  image: eclipse/zenoh-bridge-ros2dds:1.10.0
+  image: eclipse/zenoh-bridge-ros2dds:1.10.1
   init: true
   restart: unless-stopped
   stop_grace_period: 5s
