@@ -4,6 +4,10 @@ FROM ros:humble-ros-base
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
+# Newest bridge whose amd64 package supports Ubuntu 22.04 (1.10+ needs glibc 2.38).
+# Keep in sync with .devcontainer/Dockerfile and the rover (README).
+ARG ZENOH_BRIDGE_VERSION=1.9.0
+
 RUN apt-get update -q \
     && apt-get install -y --no-install-recommends \
     curl \
@@ -16,7 +20,7 @@ RUN apt-get update -q \
     && echo "deb [signed-by=/etc/apt/keyrings/zenoh-public-key.gpg] https://download.eclipse.org/zenoh/debian-repo/ /" \
     > /etc/apt/sources.list.d/zenoh.list \
     && apt-get update -q \
-    && apt-get install -y --no-install-recommends zenoh-bridge-ros2dds \
+    && apt-get install -y --no-install-recommends zenoh-bridge-ros2dds="$ZENOH_BRIDGE_VERSION" \
     && rm -rf /var/lib/apt/lists/*
 
 COPY .devcontainer/requirements.txt /tmp/requirements.txt

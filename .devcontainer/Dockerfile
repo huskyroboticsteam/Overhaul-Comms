@@ -20,14 +20,17 @@ RUN apt update -q \
     && apt clean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# Install the Zenoh ROS 2 bridge from Eclipse's apt repo
+# Install the Zenoh ROS 2 bridge from Eclipse's apt repo.
+# 1.9.0 is the newest amd64 package that supports Ubuntu 22.04 (1.10+ needs glibc 2.38).
+# Keep in sync with the root Dockerfile and the rover (README).
+ARG ZENOH_BRIDGE_VERSION=1.9.0
 RUN mkdir -p /etc/apt/keyrings \
     && curl -fsSL https://download.eclipse.org/zenoh/debian-repo/zenoh-public-key \
     | gpg --dearmor --yes -o /etc/apt/keyrings/zenoh-public-key.gpg \
     && echo "deb [signed-by=/etc/apt/keyrings/zenoh-public-key.gpg] https://download.eclipse.org/zenoh/debian-repo/ /" \
     > /etc/apt/sources.list.d/zenoh.list \
     && apt update -q \
-    && apt install -y --no-install-recommends zenoh-bridge-ros2dds \
+    && apt install -y --no-install-recommends zenoh-bridge-ros2dds="$ZENOH_BRIDGE_VERSION" \
     && apt clean \
     && rm -rf /var/lib/apt/lists/*
 

@@ -20,7 +20,9 @@ DDS stays on each machine (`ROS_LOCALHOST_ONLY=1`); only Zenoh crosses the netwo
 sudo apt install ros-humble-rmw-cyclonedds-cpp
 curl -fsSL https://download.eclipse.org/zenoh/debian-repo/zenoh-public-key | sudo gpg --dearmor --yes -o /etc/apt/keyrings/zenoh-public-key.gpg
 echo "deb [signed-by=/etc/apt/keyrings/zenoh-public-key.gpg] https://download.eclipse.org/zenoh/debian-repo/ /" | sudo tee /etc/apt/sources.list.d/zenoh.list
-sudo apt update && sudo apt install zenoh-bridge-ros2dds
+# 1.9.0 matches the laptop; 1.10+ doesn't install on Ubuntu 22.04 (amd64)
+sudo apt update && sudo apt install zenoh-bridge-ros2dds=1.9.0
+sudo apt-mark hold zenoh-bridge-ros2dds
 
 # Start the bridge on boot (the package ships a disabled service; this adds our settings to it)
 sudo mkdir -p /etc/systemd/system/zenoh-bridge-ros2dds.service.d
