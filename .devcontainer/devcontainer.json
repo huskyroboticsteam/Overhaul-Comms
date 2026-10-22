@@ -38,6 +38,9 @@
   "mounts": [],
   "runArgs": [
       "--net=host",
-      "--add-host=host.docker.internal:host-gateway"
-  ]
+      "--add-host=host.docker.internal:host-gateway",
+      "--cap-add=NET_ADMIN"
+  ],
+  // CycloneDDS needs multicast on loopback when ROS_LOCALHOST_ONLY=1
+  "postStartCommand": "sudo ip link set lo multicast on"
 }

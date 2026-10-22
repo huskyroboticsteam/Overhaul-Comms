@@ -1,7 +1,6 @@
 import asyncio
 import json
 import logging
-import signal
 import threading
 from urllib.parse import urlparse
 from typing import Dict, Any
@@ -31,7 +30,8 @@ Test message
 
 
 class MCBridgeNode(Node):
-    """ROS2 node that bridges JSON messages to/from WebSocket clients.
+    """
+    ROS2 node that bridges JSON messages to/from WebSocket clients.
 
     This is a minimal, extensible skeleton. It uses `std_msgs/String` topics
     carrying JSON payloads for demo purposes; replace with typed ROS msgs
@@ -40,7 +40,9 @@ class MCBridgeNode(Node):
 
     def __init__(self, loop: asyncio.AbstractEventLoop, out_queue: asyncio.Queue):
         """
-        Initialize MCBridgeNode. Loop is the event loop used for all
+        Initialize MCBridgeNode.
+
+        Loop is the event loop used for all
         websocket communication. Out_queue is created to queue message
         payloads to the event loop.
 
@@ -71,12 +73,12 @@ class MCBridgeNode(Node):
         asyncio.run_coroutine_threadsafe(self.out_queue.put(payload), self.loop)
 
     def handle_ws_message(self, message: Dict[str, Any]) -> None:
-        """Handle an incoming JSON message from mission control.
+        """
+        Handle an incoming JSON message from mission control.
 
         This is executed in the ROS thread; keep it short and use ROS publishers
         to forward intent into the ROS graph.
         """
-
         # TODO: CREATE CASES FOR EACH MESSAGE (i.e. publish mission control message to ROS)
 
         mtype = message.get('type')
@@ -132,13 +134,18 @@ async def ws_handler(websocket: ServerConnection, node: MCBridgeNode):
 
     node.get_logger().info('Mission control connected')
     node.ws_clients.add(websocket)
+    consumer = asyncio.create_task(consumer_handler(websocket, node))
+    producer = asyncio.create_task(producer_handler(websocket, node))
     try:
-        consumer = asyncio.create_task(consumer_handler(websocket, node))
-        producer = asyncio.create_task(producer_handler(websocket, node))
-        done, pending = await asyncio.wait([consumer, producer], return_when=asyncio.FIRST_EXCEPTION)
-        for p in pending:
-            p.cancel()
+        # Stop as soon as either side ends (e.g. a clean disconnect ends the
+        # consumer); otherwise the producer keeps pulling from out_queue and
+        # steals messages from the next connection
+        await asyncio.wait(
+            [consumer, producer], return_when=asyncio.FIRST_COMPLETED
+        )
     finally:
+        consumer.cancel()
+        producer.cancel()
         node.ws_clients.discard(websocket)
         node.get_logger().info('Mission control disconnected')
 
@@ -162,6 +169,7 @@ def _make_process_request():
 
     return process_request
 
+
 async def main_async():
     loop = asyncio.get_running_loop()
     out_queue = asyncio.Queue()
@@ -178,7 +186,7 @@ async def main_async():
     async with websockets.serve(
         lambda ws: ws_handler(ws, node),
         "0.0.0.0",
-        3001, # UPDATE devcontainer.json IF THIS EVER CHANGES
+        3001,  # UPDATE devcontainer.json IF THIS EVER CHANGES
         process_request=_make_process_request()
     ):
         node.get_logger().info(
@@ -206,6 +214,7 @@ def main():
 
     finally:
         rclpy.shutdown()
+
 
 if __name__ == '__main__':
     main()
