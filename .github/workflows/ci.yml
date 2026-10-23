@@ -21,6 +21,10 @@ jobs:
 
       - name: Build image
         uses: docker/build-push-action@v6
+        # Only the publish job's build summary and .dockerbuild record are kept
+        env:
+          DOCKER_BUILD_SUMMARY: false
+          DOCKER_BUILD_RECORD_UPLOAD: false
         with:
           context: .
           load: true
@@ -65,7 +69,8 @@ jobs:
             type=sha
 
       # amd64 for Linux laptops, arm64 for Apple Silicon Macs
-      - uses: docker/build-push-action@v6
+      - id: build
+        uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64,linux/arm64
@@ -74,3 +79,26 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Add pull command to summary
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          sha_tag=$(grep -m1 ':sha-' <<< "$TAGS")
+          {
+            echo "## Docker image"
+            echo
+            echo "Pull this exact build (amd64 + arm64):"
+            echo
+            echo '```bash'
+            echo "docker pull $sha_tag"
+            echo '```'
+            echo
+            echo "Tags: $(sed 's/.*:\(.*\)/`\1`/' <<< "$TAGS" | paste -sd ' ' -)"
+            echo
+            echo "Digest: \`$DIGEST\`"
+            echo
+            echo "[Package page](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/pkgs/container/${image##*/})"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -13,7 +13,9 @@ DDS stays on each machine (`ROS_LOCALHOST_ONLY=1`); only Zenoh crosses the netwo
 
 ### Laptop (mission control)
 - Docker + VS Code Dev Containers. The devcontainer installs ROS 2 Humble, CycloneDDS and `zenoh-bridge-ros2dds`.
-- macOS: enable host networking in Docker Desktop (Settings → Resources → Network).
+- macOS / Windows: enable host networking in Docker Desktop (Settings → Resources → Network) so the web app can reach `ws://localhost:3001`.
+- Windows: clone the repo inside WSL2 (e.g. `~/` in Ubuntu), not under `C:\`, or builds will be very slow.
+- Linux: the container shares your host's network. On start it turns on multicast for your host's loopback (`ip link set lo multicast on`, reset on reboot), and it shares DDS with any ROS nodes on your host using the same `ROS_DOMAIN_ID`.
 
 ### Rover (Ubuntu 22.04, ROS 2 Humble)
 ```bash
